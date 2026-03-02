@@ -18,7 +18,7 @@ jsonschema-specifications==2025.9.1
 MarkupSafe==3.0.3
 multitasking==0.0.12
 narwhals==2.16.0
-numpy==2.4.2
+numpy
 packaging==26.0
 pandas==2.3.3
 peewee==3.19.0
