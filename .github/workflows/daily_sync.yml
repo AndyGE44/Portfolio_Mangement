@@ -3,13 +3,12 @@ name: Daily Stock Price Sync
 # 触发条件设置
 on:
   schedule:
-    # 每天 UTC 时间 22:00 执行
-    # GitHub Actions 的服务器使用的是 UTC 时间。
-    # UTC 22:00 = 美东时间(纽约) EST 下午 17:00 (冬令时) / EDT 下午 18:00 (夏令时)
-    # 这个时间完美避开了美股闭市和你的 16:05 EOD Cutoff。
-    # 1-5 表示周一到周五执行。
-    - cron: '0 22 * * 1-5'
-  
+    # 10 代表第 10 分钟，21 代表 UTC 时间的 21 点
+    # 冬令时: 美东时间 16:10 (4:10 PM)
+    # 夏令时: 美东时间 17:10 (5:10 PM)
+    # 1-5 代表周一到周五
+    - cron: '10 21 * * 1-5'
+    
   # 允许在 GitHub 网页上通过按钮手动触发运行（测试时非常有用）
   workflow_dispatch: 
 
@@ -26,7 +25,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
           cache: 'pip' # 缓存依赖，加快后续运行速度
 
       # 3. 安装依赖包
