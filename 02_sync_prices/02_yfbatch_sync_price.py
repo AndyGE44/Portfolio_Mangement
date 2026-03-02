@@ -46,7 +46,7 @@ def main():
                 SELECT p.id, vm.vendor_ticker 
                 FROM products p
                 JOIN vendor_mappings vm ON p.id = vm.product_id
-                WHERE vm.vendor_id = :vid AND p.type = 'stock' and p.id = 1
+                WHERE vm.vendor_id = :vid AND p.type = 'stock'
             """), {'vid': vendor_id}).fetchall()
             products = list(result)
             
