@@ -35,15 +35,13 @@ def main():
     today_str = now_ny.strftime("%Y-%m-%d")
     is_before_eod_cutoff = now_ny.time() < dt_time(EOD_CUTOFF_HOUR, EOD_CUTOFF_MINUTE)
     
-    start_date = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=4)).strftime('%Y-%m-%d')
     end_date = datetime.now().strftime('%Y-%m-%d')
     
     try:
         with engine.connect() as conn:
             vendor_id = conn.execute(text("SELECT id FROM vendors WHERE name='yahoo_finance'")).scalar()
-            if not vendor_id:
-                vendor_id = conn.execute(text("SELECT id FROM vendors WHERE name='fmp'")).scalar()
-
+           
             result = conn.execute(text("""
                 SELECT p.id, vm.vendor_ticker 
                 FROM products p
