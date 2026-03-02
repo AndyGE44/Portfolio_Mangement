@@ -35,8 +35,8 @@ def main():
     today_str = now_ny.strftime("%Y-%m-%d")
     is_before_eod_cutoff = now_ny.time() < dt_time(EOD_CUTOFF_HOUR, EOD_CUTOFF_MINUTE)
     
-    start_date = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
-    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    end_date =(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
     
     try:
         with engine.connect() as conn:
@@ -46,7 +46,7 @@ def main():
                 SELECT p.id, vm.vendor_ticker 
                 FROM products p
                 JOIN vendor_mappings vm ON p.id = vm.product_id
-                WHERE vm.vendor_id = :vid AND p.type = 'stock'
+                WHERE vm.vendor_id = :vid AND p.type = 'stock' and p.id = 1
             """), {'vid': vendor_id}).fetchall()
             products = list(result)
             
@@ -68,6 +68,7 @@ def main():
         # 核心提速：使用 yf.download 一次性获取所有数据
         # auto_adjust=False 保持原始价格
         # threads=True 允许 yfinance 内部使用优化的并发
+       
         df = yf.download(
             tickers_list, 
             start=start_date, 
@@ -76,6 +77,7 @@ def main():
             threads=True,
             ignore_tz=True # 忽略时区，保持纯粹的 YYYY-MM-DD
         )
+        
         
         if df.empty:
             logger.warning("下载的数据为空。")
