@@ -35,7 +35,7 @@ def main():
     today_str = now_ny.strftime("%Y-%m-%d")
     is_before_eod_cutoff = now_ny.time() < dt_time(EOD_CUTOFF_HOUR, EOD_CUTOFF_MINUTE)
     
-    start_date = (datetime.now() - timedelta(days=4)).strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
     end_date = datetime.now().strftime('%Y-%m-%d')
     
     try:
