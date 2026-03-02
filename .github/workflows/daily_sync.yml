@@ -1,0 +1,45 @@
+name: Daily Stock Price Sync
+
+# 触发条件设置
+on:
+  schedule:
+    # 每天 UTC 时间 22:00 执行
+    # GitHub Actions 的服务器使用的是 UTC 时间。
+    # UTC 22:00 = 美东时间(纽约) EST 下午 17:00 (冬令时) / EDT 下午 18:00 (夏令时)
+    # 这个时间完美避开了美股闭市和你的 16:05 EOD Cutoff。
+    # 1-5 表示周一到周五执行。
+    - cron: '0 22 * * 1-5'
+  
+  # 允许在 GitHub 网页上通过按钮手动触发运行（测试时非常有用）
+  workflow_dispatch: 
+
+jobs:
+  run-sync:
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu 虚拟环境
+
+    steps:
+      # 1. 把你的代码拉取到虚拟机里
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. 设置 Python 环境
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip' # 缓存依赖，加快后续运行速度
+
+      # 3. 安装依赖包
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. 运行你的主脚本
+      - name: Run Price Sync Script
+        env:
+          # 核心安全操作：将 GitHub Secret 中的值读取出来，并注入为系统环境变量
+          # 你的 python 脚本里的 os.environ.get("DB_CONNECTION") 就会读到这里的值
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+        run: |
+          python 02_sync_prices/02_yfbatch_sync_price.py
