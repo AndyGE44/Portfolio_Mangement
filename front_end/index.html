@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pro Trading Terminal</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="config.js"></script>
+    
+    <style>
+        /* Global Styles: Dark Theme */
+        body { margin: 0; padding: 0; display: flex; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #131722; color: #d1d4dc; overflow: hidden; }
+        
+        /* 1. Left Panel: Watchlist */
+        #left-panel { width: 220px; background-color: #1e222d; border-right: 1px solid #2a2e39; display: flex; flex-direction: column; }
+        .panel-header { padding: 15px; font-weight: bold; border-bottom: 1px solid #2a2e39; font-size: 14px; color: #787b86; text-transform: uppercase; letter-spacing: 1px;}
+        
+        .search-container { padding: 10px 15px; border-bottom: 1px solid #2a2e39; }
+        #stock-search { width: 100%; box-sizing: border-box; padding: 8px 10px; background-color: #131722; border: 1px solid #2a2e39; color: #d1d4dc; border-radius: 4px; outline: none; font-size: 14px; transition: border-color 0.2s;}
+        #stock-search:focus { border-color: #2962FF; }
+
+        #stock-list { flex-grow: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+        
+        /* Stock Item Styles - 回归清爽的上下堆叠结构 */
+        .stock-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #2a2e39; transition: background 0.2s; display: flex; flex-direction: column; justify-content: center;}
+        .stock-item:hover { background-color: #2a2e39; }
+        .stock-item.active { background-color: #2a2e39; border-left: 3px solid #2962FF; }
+        
+        .stock-name { font-size: 14px; font-weight: bold; color: #d1d4dc; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stock-ticker { font-size: 11px; color: #787b86; letter-spacing: 0.5px;}
+
+        .stock-item.active .stock-name { color: #ffffff; }
+        .stock-item.active .stock-ticker { color: #b2b5be; }
+        
+        /* 2. Center Panel: Chart */
+        #center-panel { flex-grow: 1; display: flex; flex-direction: column; background-color: #131722; position: relative;}
+        #chart-header { padding: 15px 20px; border-bottom: 1px solid #2a2e39; display: flex; align-items: center; justify-content: space-between; gap: 15px;}
+        #loading-indicator { font-size: 14px; color: #f5a623; display: none; }
+        #tvchart { flex-grow: 1; width: 100%; position: relative; }
+
+        /* 3. Right Panel: Info */
+        #right-panel { width: 280px; background-color: #1e222d; border-left: 1px solid #2a2e39; display: flex; flex-direction: column; }
+        .info-block { padding: 20px; border-bottom: 1px solid #2a2e39; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px;}
+        .info-label { color: #787b86; }
+        .info-value { font-weight: bold; color: #fff; }
+        .up-color { color: #26a69a !important; }
+        .down-color { color: #ef5350 !important; }
+        
+        /* Scrollbar aesthetics */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #434651; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #5d606b; }
+    </style>
+</head>
+<body>
+
+    <div id="left-panel">
+        <div class="panel-header">Watchlist</div>
+        <div class="search-container">
+            <input type="text" id="stock-search" placeholder="Search Name or Ticker..." oninput="filterStocks()">
+        </div>
+        <ul id="stock-list">
+            </ul>
+    </div>
+
+    <div id="center-panel">
+        <div id="chart-header">
+            <div id="current-ticker">Loading...</div>
+            <span id="loading-indicator">Fetching data...</span>
+        </div>
+        <div id="tvchart"></div>
+    </div>
+
+    <div id="right-panel">
+        <div class="panel-header">Latest Data</div>
+        <div class="info-block" id="info-content">
+            <div style="color: #787b86; font-size: 14px;">Please select a ticker...</div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+        let chart = null;
+        let currentActiveTicker = null;
+
+        window.onload = async () => {
+            await fetchStockList();
+            if (CONFIG.DEFAULT_TICKER) {
+                loadStockData(CONFIG.DEFAULT_TICKER);
+            }
+        };
+
+        // Fetch products, calculate latest turnover (volume * close), and render sorted list
+        async function fetchStockList() {
+            try {
+                // Step 1: Fetch all products
+                let query = supabaseClient.from('products').select('id, ticker, name');
+                if (CONFIG.ASSET_CLASS) {
+                    query = query.eq('asset_class', CONFIG.ASSET_CLASS);
+                }
+                const { data: products, error: pErr } = await query;
+                if (pErr) throw pErr;
+
+                // Step 2: Find the most recent trade_date
+                const { data: latestDateData, error: dErr } = await supabaseClient
+                    .from('quotes')
+                    .select('trade_date')
+                    .eq('vendor_id', CONFIG.VENDOR_ID)
+                    .order('trade_date', { ascending: false })
+                    .limit(1);
+
+                let turnoverMap = {};
+                
+                // Step 3: Fetch volume and close for that date to calculate turnover
+                if (!dErr && latestDateData && latestDateData.length > 0) {
+                    const maxDate = latestDateData[0].trade_date;
+                    const { data: quoteData, error: qErr } = await supabaseClient
+                        .from('quotes')
+                        // 同时拉取 volume 和 close 以便计算成交额
+                        .select('product_id, volume, close') 
+                        .eq('vendor_id', CONFIG.VENDOR_ID)
+                        .eq('trade_date', maxDate);
+                    
+                    if (!qErr && quoteData) {
+                        quoteData.forEach(q => { 
+                            // 粗略计算成交额 = volume * close
+                            const vol = q.volume || 0;
+                            const closePrice = q.close || 0;
+                            turnoverMap[q.product_id] = vol * closePrice; 
+                        });
+                    }
+                }
+
+                // Step 4: Map turnover to products and sort descending
+                products.forEach(p => {
+                    p.latestTurnover = turnoverMap[p.id] || 0;
+                });
+                
+                // 根据成交额进行降序排列
+                products.sort((a, b) => b.latestTurnover - a.latestTurnover);
+
+                // Step 5: Render to UI (隐藏掉具体的数字展示)
+                const listEl = document.getElementById('stock-list');
+                listEl.innerHTML = ''; 
+
+                products.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'stock-item';
+                    li.id = `nav-${item.ticker}`;
+                    
+                    const dispName = item.name ? item.name : item.ticker;
+                    const volFormatted = (item.latestTurnover / 1000000).toFixed(2) + 'M';
+
+                    // 【性能优化核心 1】提前把要搜索的文本拼好，存到 HTML 标签的属性里
+                    const searchStr = `${dispName} ${item.ticker}`.toUpperCase();
+                    li.setAttribute('data-search', searchStr);
+
+                    li.innerHTML = `
+                        <div class="stock-name" title="${dispName}">${dispName}</div>
+                        <div class="stock-ticker">${item.ticker}</div>
+                    `;
+                    
+                    li.onclick = () => loadStockData(item.ticker);
+                    listEl.appendChild(li);
+                });
+            } catch (err) {
+                console.error("Failed to load watchlist:", err);
+            }
+        }
+
+        // 声明一个全局变量，用来存定时器
+        let searchTimeout = null;
+
+        // Search filter logic (加入防抖和性能优化)
+        function filterStocks() {
+            // 【性能优化核心 2】防抖 (Debounce)：
+            // 如果用户正在快速打字，就打断之前的计划，重新开始倒计时
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // 设定延迟 150 毫秒后才执行搜索
+            searchTimeout = setTimeout(() => {
+                const filterValue = document.getElementById('stock-search').value.toUpperCase();
+                const items = document.getElementsByClassName('stock-item');
+
+                for (let i = 0; i < items.length; i++) {
+                    // 【性能优化核心 3】直接读取我们刚才存的属性，而不是去读 innerText
+                    // getAttribute 只是读字符串，不会触发浏览器的重新排版，速度快上百倍！
+                    const text = items[i].getAttribute('data-search');
+                    
+                    if (text.indexOf(filterValue) > -1) {
+                        items[i].style.display = 'flex';
+                    } else {
+                        items[i].style.display = 'none';
+                    }
+                }
+            }, 150); // 150ms 的延迟正好是人类感觉不到卡顿，又能拦住连按的黄金时间
+        }
+
+        // Load specific stock data
+        async function loadStockData(ticker) {
+            if (currentActiveTicker === ticker) return; 
+            currentActiveTicker = ticker;
+
+            document.querySelectorAll('.stock-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.getElementById(`nav-${ticker}`);
+            if (activeEl) activeEl.classList.add('active');
+            
+            const loadingIndicator = document.getElementById('loading-indicator');
+            loadingIndicator.style.display = 'block';
+
+            try {
+                // Fetch product ID and Name
+                const { data: mappingData, error: mapErr } = await supabaseClient
+                    .from('products') 
+                    .select('id, name')     
+                    .eq('ticker', ticker) 
+                    .maybeSingle();
+
+                if (mapErr || !mappingData) throw new Error("Product ID not found");
+
+                const dispName = mappingData.name ? mappingData.name : ticker;
+                document.getElementById('current-ticker').innerHTML = `
+                    <div style="display: flex; flex-direction: column; line-height: 1.2;">
+                        <span style="font-size: 20px; font-weight: bold; color: #fff;">${dispName}</span>
+                        <span style="font-size: 13px; color: #787b86; font-weight: normal; margin-top: 4px;">${ticker}</span>
+                    </div>
+                `;
+
+                // Fetch Quotes using configured VENDOR_ID
+                const { data: quotes, error: qErr } = await supabaseClient
+                    .from('quotes')
+                    .select('trade_date, open, high, low, close, volume')
+                    .eq('product_id', mappingData.id)
+                    .eq('vendor_id', CONFIG.VENDOR_ID) 
+                    .order('trade_date', { ascending: true });
+
+                if (qErr || !quotes || quotes.length === 0) throw new Error("No quote data available");
+
+                renderChart(quotes);
+                updateRightPanel(quotes[quotes.length - 1], quotes[quotes.length - 2]);
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('info-content').innerHTML = `<div style="color:#ef5350;">Data loading failed: ${err.message}</div>`;
+                if(chart) { chart.remove(); chart = null; }
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        // Update right side panel
+        function updateRightPanel(latest, previous) {
+            if (!latest) return;
+            
+            let changeStr = "N/A";
+            let colorClass = "";
+            if (previous) {
+                const change = latest.close - previous.close;
+                const percent = (change / previous.close * 100).toFixed(2);
+                const sign = change >= 0 ? "+" : "";
+                colorClass = change >= 0 ? "up-color" : "down-color";
+                changeStr = `${sign}${change.toFixed(2)} (${sign}${percent}%)`;
+            }
+
+            const html = `
+                <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;" class="${colorClass}">
+                    $${latest.close.toFixed(2)}
+                </div>
+                <div style="font-size: 14px; margin-bottom: 25px;" class="${colorClass}">
+                    ${changeStr}
+                </div>
+
+                <div class="info-row"><span class="info-label">Date</span><span class="info-value">${latest.trade_date}</span></div>
+                <div class="info-row"><span class="info-label">Open</span><span class="info-value">${latest.open.toFixed(2)}</span></div>
+                <div class="info-row"><span class="info-label">High</span><span class="info-value">${latest.high.toFixed(2)}</span></div>
+                <div class="info-row"><span class="info-label">Low</span><span class="info-value">${latest.low.toFixed(2)}</span></div>
+                <div class="info-row"><span class="info-label">Volume</span><span class="info-value">${(latest.volume / 1000000).toFixed(2)} M</span></div>
+            `;
+            document.getElementById('info-content').innerHTML = html;
+        }
+
+        // Render TradingView Chart
+        function renderChart(quotesData) {
+            const container = document.getElementById('tvchart');
+            if (chart !== null) chart.remove();
+
+            chart = LightweightCharts.createChart(container, {
+                layout: { background: { type: 'solid', color: '#131722' }, textColor: '#d1d4dc' },
+                grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                timeScale: { borderColor: '#2a2e39' },
+                autoSize: true, 
+            });
+
+            const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+                upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+                wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+            });
+
+            const volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
+                color: '#26a69a', priceFormat: { type: 'volume' }, priceScaleId: '', 
+            });
+            chart.priceScale('').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+            const candleData = [];
+            const volumeData = [];
+            
+            quotesData.forEach(row => {
+                candleData.push({ time: row.trade_date, open: row.open, high: row.high, low: row.low, close: row.close });
+                const isUp = row.close >= row.open;
+                volumeData.push({ time: row.trade_date, value: row.volume, color: isUp ? '#26a69a80' : '#ef535080' });
+            });
+
+            candlestickSeries.setData(candleData);
+            volumeSeries.setData(volumeData);
+            chart.timeScale().fitContent();
+        }
+
+        window.addEventListener('resize', () => {
+            if (chart) {
+                chart.applyOptions({ width: document.getElementById('center-panel').clientWidth });
+            }
+        });
+    </script>
+</body>
+</html>

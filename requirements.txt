@@ -31,7 +31,7 @@ pycparser==3.0
 pydeck==0.9.1
 python-dateutil==2.9.0.post0
 pytz==2025.2
-referencing==0.37.0
+referencing==0.37.0git 
 requests==2.32.5
 rpds-py==0.30.0
 six==1.17.0
