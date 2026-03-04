@@ -122,13 +122,14 @@
                 const { data: dates, error: dErr } = await supabaseClient.rpc('get_latest_dates');
                 const latestDate = dates[0]?.t_date;
                 const prevDate = dates[1]?.t_date;
-                
+
                 // 3. 获取这两天的所有报价数据
                 const { data: quoteData, error: qErr } = await supabaseClient
                     .from('quotes')
                     .select('product_id, trade_date, close, volume') 
                     .eq('vendor_id', CONFIG.VENDOR_ID)
-                    .in('trade_date', [latestDate, prevDate]);
+                    .in('trade_date', [latestDate, prevDate])
+                    .limit(5000);
 
                 const priceMap = {}; // { productId: { latestClose, prevClose, turnover } }
                 if (!qErr && quoteData) {
@@ -142,6 +143,9 @@
                         }
                     });
                 }
+
+                console.log("Total quotes fetched:", quoteData.length);
+                console.log("Global dates:", latestDate, prevDate);
 
                 // 4. 组装数据并排序
                 products.forEach(p => {
