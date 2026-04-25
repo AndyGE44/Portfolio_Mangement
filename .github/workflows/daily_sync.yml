@@ -42,3 +42,30 @@ jobs:
           DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
         run: |
           python 02_sync_prices/02_yfbatch_sync_price.py
+
+      # 5. Upsert 1.0 daily quotes for cash products (USD, HKD, ...)
+      - name: Sync Cash Quotes
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+        run: |
+          python -c "
+          import os, psycopg2
+          conn = psycopg2.connect(os.environ['DB_CONNECTION'])
+          with conn, conn.cursor() as cur:
+              cur.execute('SELECT public.upsert_cash_quotes(CURRENT_DATE)')
+              print(f'cash quotes upserted: {cur.fetchone()[0]}')
+          "
+
+      # 6. Fetch today's USD↔HKD FX rate from yfinance and upsert both directions
+      - name: Sync FX Rates (USD↔HKD)
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+        run: |
+          python 06_add_fx_rate.py --fetch $(date -d "2 days ago" +%Y-%m-%d) $(date -d "tomorrow" +%Y-%m-%d) --skip-existing
+
+      # 7. Compute today's portfolio stats for all portfolios (Python; canonical)
+      - name: Sync Daily Portfolio Stats
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+        run: |
+          python 07_rebuild_portfolio_stats.py --date $(date -u +%Y-%m-%d)

@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #0d1117; color: #c9d1d9;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px; min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        header {
+            background: #161b22; border-bottom: 1px solid #30363d;
+            padding: 0 24px; height: 48px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .logo { color: #58a6ff; font-size: 14px; letter-spacing: 3px; font-weight: bold; }
+        .logo a { color: inherit; text-decoration: none; }
+        .header-right { display: flex; align-items: center; gap: 16px; font-size: 11px; }
+        .user-email { color: #8b949e; }
+        a.nav-link { color: #8b949e; text-decoration: none; }
+        a.nav-link:hover { color: #c9d1d9; }
+
+        /* ── Layout ── */
+        main { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+
+        /* ── Login ── */
+        .login-wrap { max-width: 340px; margin: 80px auto 0; }
+        .login-wrap h2 {
+            color: #58a6ff; font-size: 13px; letter-spacing: 3px;
+            text-transform: uppercase; margin-bottom: 28px; text-align: center;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 6px; padding: 20px 22px; margin-bottom: 18px;
+        }
+        .card-title {
+            color: #58a6ff; font-size: 11px; letter-spacing: 2px;
+            text-transform: uppercase; margin-bottom: 16px;
+            padding-bottom: 10px; border-bottom: 1px solid #21262d;
+        }
+
+        /* ── Form ── */
+        .form-row {
+            display: flex; flex-wrap: wrap; gap: 12px;
+            align-items: flex-end; margin-bottom: 14px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        label { color: #8b949e; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        input[type="text"], input[type="email"], input[type="password"],
+        input[type="number"], input[type="date"], select {
+            background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+            color: #c9d1d9; padding: 6px 10px;
+            font-family: 'Courier New', monospace; font-size: 12px;
+            outline: none; height: 30px;
+        }
+        input:focus, select:focus { border-color: #58a6ff; }
+        input::placeholder { color: #484f58; }
+        input.w-full { width: 100%; }
+
+        /* ── Buttons ── */
+        .btn {
+            background: #238636; color: #fff; border: none; border-radius: 4px;
+            padding: 0 16px; height: 30px; font-family: 'Courier New', monospace;
+            font-size: 11px; font-weight: bold; letter-spacing: 1px;
+            cursor: pointer; text-transform: uppercase; white-space: nowrap;
+        }
+        .btn:hover { background: #2ea043; }
+        .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+        .btn-ghost {
+            background: transparent; border: 1px solid #30363d; color: #8b949e;
+            border-radius: 4px; padding: 0 12px; height: 30px;
+            font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer;
+        }
+        .btn-ghost:hover { border-color: #8b949e; color: #c9d1d9; }
+        .btn-blue  { background: #1f6feb; }
+        .btn-blue:hover  { background: #388bfd; }
+        .btn-red   { background: #b91c1c; }
+        .btn-red:hover   { background: #dc2626; }
+        .btn-amber { background: #92400e; }
+        .btn-amber:hover { background: #b45309; }
+
+        /* ── Alerts ── */
+        .alert { padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 12px; }
+        .alert-error   { background: #2d1117; border: 1px solid #f85149; color: #f85149; }
+        .alert-success { background: #0f2d1c; border: 1px solid #3fb950; color: #3fb950; }
+
+        /* ── Item list ── */
+        .item-list { margin-bottom: 16px; }
+        .item-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 7px 0; border-bottom: 1px solid #21262d; font-size: 12px;
+        }
+        .item-row:last-child { border-bottom: none; }
+        .item-name { color: #c9d1d9; }
+        .item-meta { color: #484f58; font-size: 11px; }
+        .empty-msg { color: #484f58; font-size: 11px; font-style: italic; padding: 4px 0 12px; }
+
+        hr.divider { border: none; border-top: 1px solid #21262d; margin: 14px 0; }
+
+        /* ── Ticker search ── */
+        .ticker-wrap { position: relative; }
+        .ticker-dropdown {
+            position: absolute; top: calc(100% + 2px); left: 0;
+            min-width: 280px; background: #1c2128;
+            border: 1px solid #30363d; border-radius: 4px;
+            max-height: 200px; overflow-y: auto; z-index: 200;
+        }
+        .ticker-opt {
+            padding: 7px 12px; cursor: pointer;
+            border-bottom: 1px solid #21262d;
+            display: flex; gap: 10px; align-items: baseline;
+        }
+        .ticker-opt:last-child { border-bottom: none; }
+        .ticker-opt:hover { background: #21262d; }
+        .ticker-sym  { color: #58a6ff; font-weight: bold; font-size: 12px; }
+        .ticker-name { color: #8b949e; font-size: 11px; }
+
+        /* ── Ticker selected ── */
+        .ticker-selected { color: #8b949e; font-size: 11px; padding: 8px 0 0; min-height: 18px; }
+        .ticker-selected.has-value { color: #3fb950; }
+
+        /* ── Info lines ── */
+        .info-line { font-size: 11px; padding: 3px 0; min-height: 18px; color: #8b949e; }
+        .info-split { color: #a371f7; }
+        .info-fx    { color: #e3b341; }
+
+        /* ── FX arrow ── */
+        .fx-arrow { color: #484f58; font-size: 18px; padding-bottom: 2px; align-self: flex-end; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo"><a href="index.html">MY QUANT APP</a></div>
+    <div class="header-right">
+        <span class="user-email" id="hdr-email"></span>
+        <a href="index.html" class="nav-link">Terminal</a>
+        <button class="btn-ghost hidden" id="btn-signout" onclick="signOut()">Sign Out</button>
+    </div>
+</header>
+
+<main>
+
+    <!-- ── Login ── -->
+    <div class="login-wrap" id="login-section">
+        <h2>Sign In</h2>
+        <div id="login-msg"></div>
+        <div class="form-group" style="margin-bottom:12px">
+            <label>Email</label>
+            <input type="email" id="inp-email" placeholder="you@example.com" class="w-full"
+                   onkeydown="if(event.key==='Enter')signIn()">
+        </div>
+        <div class="form-group" style="margin-bottom:18px">
+            <label>Password</label>
+            <input type="password" id="inp-password" placeholder="••••••••" class="w-full"
+                   onkeydown="if(event.key==='Enter')signIn()">
+        </div>
+        <button class="btn btn-blue" onclick="signIn()" style="width:100%">Sign In</button>
+    </div>
+
+    <!-- ── App ── -->
+    <div id="app-section" class="hidden">
+
+        <!-- ── Portfolios ── -->
+        <div class="card">
+            <div class="card-title">My Portfolios</div>
+            <div id="portfolios-list" class="item-list"></div>
+            <div id="stats-msg"></div>
+            <hr class="divider">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="p-name" placeholder="e.g. Main Portfolio" style="width:200px">
+                </div>
+                <div class="form-group">
+                    <label>Base Currency</label>
+                    <select id="p-currency" style="width:90px" onchange="populateCurrencySelects()">
+                        <option value="USD">USD</option>
+                        <option value="HKD">HKD</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="p-start-date" style="width:145px">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Broker Account</label>
+                    <select id="p-broker" style="width:175px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Initial Deposit (base ccy)</label>
+                    <input type="number" id="p-initial-deposit" placeholder="0.00" min="0.01" step="any" style="width:150px">
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="addPortfolio()">+ Add</button>
+                </div>
+            </div>
+            <div id="portfolio-msg"></div>
+        </div>
+
+        <!-- ── Broker Accounts ── -->
+        <div class="card">
+            <div class="card-title">My Broker Accounts</div>
+            <div id="brokers-list" class="item-list"></div>
+            <hr class="divider">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Institution</label>
+                    <select id="b-institution" style="width:190px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Nickname</label>
+                    <input type="text" id="b-name" placeholder="e.g. Futu Bull" style="width:150px">
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="b-type" style="width:100px">
+                        <option value="margin">Margin</option>
+                        <option value="cash">Cash</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="addBroker()">+ Add</button>
+                </div>
+            </div>
+            <div id="broker-msg"></div>
+        </div>
+
+        <!-- ── Deposit / Withdraw Cash ── -->
+        <div class="card">
+            <div class="card-title">Deposit / Withdraw Cash</div>
+            <div id="cash-msg"></div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Portfolio</label>
+                    <select id="cw-portfolio" style="width:175px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Broker Account</label>
+                    <select id="cw-broker" style="width:175px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <select id="cw-ccy" style="width:100px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="number" id="cw-amount" placeholder="0.00" min="0" step="any" style="width:130px">
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="cw-date" style="width:145px">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <input type="text" id="cw-notes" placeholder="Optional" style="width:300px">
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:4px">
+                <button class="btn"     onclick="submitCash('deposit')">Deposit</button>
+                <button class="btn btn-red" onclick="submitCash('withdrawal')">Withdraw</button>
+            </div>
+        </div>
+
+        <!-- ── FX Exchange ── -->
+        <div class="card">
+            <div class="card-title">FX Exchange</div>
+            <div id="fx-msg"></div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Portfolio</label>
+                    <select id="fx-portfolio" style="width:175px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Broker Account</label>
+                    <select id="fx-broker" style="width:175px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="fx-date" style="width:145px">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Sell Currency</label>
+                    <select id="fx-from-ccy" style="width:100px" onchange="computeFx()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Amount Sold</label>
+                    <input type="number" id="fx-from-amt" placeholder="0.00" min="0" step="any"
+                           oninput="computeFx()" style="width:130px">
+                </div>
+                <div class="form-group">
+                    <label>FX Rate (1 sell = ? buy)</label>
+                    <input type="number" id="fx-rate" placeholder="e.g. 7.8" min="0.0001" step="any"
+                           oninput="computeFx()" style="width:145px">
+                </div>
+                <div class="fx-arrow">→</div>
+                <div class="form-group">
+                    <label>Buy Currency</label>
+                    <select id="fx-to-ccy" style="width:100px" onchange="computeFx()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Amount Received</label>
+                    <input type="number" id="fx-to-amt" placeholder="auto" step="any" style="width:130px"
+                           oninput="onFxToAmtEdit()">
+                </div>
+            </div>
+            <div class="info-line info-fx" id="fx-info"></div>
+            <div class="form-row" style="margin-top:4px">
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <input type="text" id="fx-notes" placeholder="Optional" style="width:300px">
+                </div>
+            </div>
+            <div style="margin-top:6px">
+                <button class="btn btn-amber" onclick="submitFx()">Execute FX</button>
+            </div>
+        </div>
+
+        <!-- ── Add Transaction ── -->
+        <div class="card">
+            <div class="card-title">Add Transaction</div>
+            <div id="txn-msg"></div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Portfolio</label>
+                    <select id="t-portfolio" style="width:175px" onchange="onContextChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Broker Account</label>
+                    <select id="t-broker" style="width:175px" onchange="onContextChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="t-type" style="width:120px" onchange="onTypeChange()">
+                        <option value="buy">Buy</option>
+                        <option value="sell">Sell</option>
+                        <option value="dividend">Dividend</option>
+                        <option value="split">Split</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="t-date" style="width:145px">
+                </div>
+            </div>
+
+            <!-- Ticker (buy / sell / split) -->
+            <div class="form-row" id="row-ticker">
+                <div class="form-group ticker-wrap">
+                    <label>Ticker</label>
+                    <input type="text" id="t-ticker" placeholder="Search ticker…" autocomplete="off"
+                           oninput="onTickerInput()" style="width:200px">
+                    <div class="ticker-dropdown hidden" id="ticker-dd"></div>
+                </div>
+                <div class="form-group">
+                    <div class="ticker-selected" id="ticker-selected">No ticker selected</div>
+                </div>
+            </div>
+
+            <!-- Dividend -->
+            <div class="form-row hidden" id="row-dividend">
+                <div class="form-group">
+                    <label>Cash Currency</label>
+                    <select id="t-div-ccy" style="width:100px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Amount Received</label>
+                    <input type="number" id="t-div-amount" placeholder="0.00" min="0" step="any" style="width:140px">
+                </div>
+            </div>
+
+            <!-- Buy / Sell -->
+            <div class="form-row hidden" id="row-buysell">
+                <div class="form-group">
+                    <label>Quantity (shares)</label>
+                    <input type="number" id="t-qty" placeholder="0" min="0" step="any" style="width:130px"
+                           oninput="updateBuySellHint()">
+                </div>
+                <div class="form-group">
+                    <label>Price per Share</label>
+                    <input type="number" id="t-price" placeholder="0.00" min="0" step="any" style="width:120px"
+                           oninput="updateBuySellHint()">
+                </div>
+                <div class="form-group">
+                    <label>Commission</label>
+                    <input type="number" id="t-commission" placeholder="0.00" min="0" step="any" style="width:110px"
+                           oninput="updateBuySellHint()">
+                </div>
+            </div>
+            <div class="info-line hidden" id="buysell-hint"></div>
+
+            <!-- Split -->
+            <div class="form-row hidden" id="row-split">
+                <div class="form-group">
+                    <label>Split Ratio (new : 1 old)</label>
+                    <input type="number" id="t-split-ratio" placeholder="e.g. 3" min="0.001" step="any"
+                           oninput="computeSplit()" style="width:150px">
+                </div>
+            </div>
+            <div class="info-line info-split hidden" id="split-info"></div>
+
+            <div class="form-row" style="margin-top:4px">
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <input type="text" id="t-notes" placeholder="Optional" style="width:380px">
+                </div>
+            </div>
+
+            <div style="margin-top:6px">
+                <button class="btn" onclick="submitTxn()">Submit Transaction</button>
+            </div>
+        </div>
+
+    </div><!-- /app-section -->
+</main>
+
+<script>
+// ── Globals ───────────────────────────────────────────────────────────────────
+const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+let me            = null;
+let portfolios    = [];
+let userBrokers   = [];
+let cashProducts  = {};   // { 'USD': id, 'HKD': id }
+let pickedProduct = null;
+let splitExtra    = 0;
+let tickerTimer;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function signIn() {
+    const email    = document.getElementById('inp-email').value.trim();
+    const password = document.getElementById('inp-password').value;
+    showMsg('login-msg', '');
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { showMsg('login-msg', error.message, 'error'); return; }
+    await boot();
+}
+
+async function signOut() {
+    await sb.auth.signOut();
+    me = null;
+    show('login-section'); hide('app-section');
+    document.getElementById('hdr-email').textContent = '';
+    document.getElementById('btn-signout').classList.add('hidden');
+}
+
+async function boot() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { show('login-section'); hide('app-section'); return; }
+    me = session.user;
+    hide('login-section'); show('app-section');
+    document.getElementById('hdr-email').textContent = me.email;
+    document.getElementById('btn-signout').classList.remove('hidden');
+
+    const today = new Date();
+    ['t-date','cw-date','fx-date'].forEach(id =>
+        document.getElementById(id).valueAsDate = today);
+
+    await Promise.all([loadPortfolios(), loadUserBrokers(), loadInstitutions(), loadCashProducts()]);
+    onTypeChange();
+}
+
+// ── Data loaders ──────────────────────────────────────────────────────────────
+async function loadPortfolios() {
+    const { data } = await sb.from('portfolios')
+        .select('id, name, base_currency, start_date').order('created_at');
+    portfolios = data || [];
+    renderPortfolios();
+    ['t-portfolio','cw-portfolio','fx-portfolio'].forEach(id => {
+        document.getElementById(id).innerHTML = portfolios.length
+            ? portfolios.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
+            : '<option value="">— Add a portfolio first —</option>';
+    });
+    populateCurrencySelects();
+}
+
+async function loadUserBrokers() {
+    const { data } = await sb.from('user_brokers')
+        .select('id, name, account_type, broker:broker_id(name)').order('created_at');
+    userBrokers = data || [];
+    renderBrokers();
+    const opts = userBrokers.length
+        ? userBrokers.map(b => `<option value="${b.id}">${b.name}</option>`).join('')
+        : '<option value="">— Add a broker first —</option>';
+    ['t-broker','cw-broker','fx-broker','p-broker'].forEach(id =>
+        document.getElementById(id).innerHTML = opts);
+}
+
+async function loadInstitutions() {
+    const { data } = await sb.from('broker')
+        .select('id, name, display_name').eq('is_active', true).order('name');
+    document.getElementById('b-institution').innerHTML = (data || [])
+        .map(b => `<option value="${b.id}">${b.display_name || b.name}</option>`).join('');
+}
+
+async function loadCashProducts() {
+    const { data } = await sb.from('products')
+        .select('id, base_currency').eq('asset_class', 'cash');
+    cashProducts = {};
+    (data || []).forEach(p => { cashProducts[p.base_currency] = p.id; });
+    populateCurrencySelects();
+}
+
+function populateCurrencySelects() {
+    const ccys = Object.keys(cashProducts);
+    const base = ccys.length ? ccys : [...new Set(portfolios.map(p => p.base_currency))];
+    const opts = base.map(c => `<option value="${c}">${c}</option>`).join('');
+    ['cw-ccy','t-div-ccy','fx-from-ccy','fx-to-ccy'].forEach(id =>
+        document.getElementById(id).innerHTML = opts);
+    // Default FX buy currency to second option
+    const toSel = document.getElementById('fx-to-ccy');
+    if (toSel.options.length > 1) toSel.selectedIndex = 1;
+}
+
+// ── Renders ───────────────────────────────────────────────────────────────────
+function renderPortfolios() {
+    const el = document.getElementById('portfolios-list');
+    if (!portfolios.length) { el.innerHTML = '<div class="empty-msg">No portfolios yet</div>'; return; }
+    el.innerHTML = portfolios.map(p => `
+        <div class="item-row">
+            <span class="item-name">${p.name}</span>
+            <span class="item-meta">${p.base_currency}${p.start_date ? ' · started ' + p.start_date : ''}</span>
+            <button class="btn-ghost" style="font-size:10px;padding:0 8px;height:24px"
+                    onclick="recalcStats(${p.id}, '${p.name.replace(/'/g,"\\'")}')">↻ Recalc</button>
+        </div>`).join('');
+}
+
+function renderBrokers() {
+    const el = document.getElementById('brokers-list');
+    if (!userBrokers.length) { el.innerHTML = '<div class="empty-msg">No broker accounts yet</div>'; return; }
+    el.innerHTML = userBrokers.map(b => `
+        <div class="item-row">
+            <span class="item-name">${b.name}</span>
+            <span class="item-meta">${b.broker?.name || ''} · ${b.account_type}</span>
+        </div>`).join('');
+}
+
+// ── Add portfolio ─────────────────────────────────────────────────────────────
+async function addPortfolio() {
+    const name           = document.getElementById('p-name').value.trim();
+    const currency       = document.getElementById('p-currency').value;
+    const start_date     = document.getElementById('p-start-date').value || null;
+    const brokerId       = parseInt(document.getElementById('p-broker').value);
+    const initialDeposit = parseFloat(document.getElementById('p-initial-deposit').value);
+
+    if (!name) { showMsg('portfolio-msg', 'Portfolio name is required.', 'error'); return; }
+    if (!brokerId) { showMsg('portfolio-msg', 'Select a broker account.', 'error'); return; }
+    if (!initialDeposit || initialDeposit <= 0) {
+        showMsg('portfolio-msg', 'Initial deposit amount is required.', 'error'); return;
+    }
+
+    const cashId = cashProducts[currency];
+    if (!cashId) { showMsg('portfolio-msg', `No cash product for ${currency}.`, 'error'); return; }
+
+    const { data: pData, error } = await sb.from('portfolios')
+        .insert({ name, base_currency: currency, user_id: me.id, start_date })
+        .select('id').single();
+    if (error) { showMsg('portfolio-msg', error.message, 'error'); return; }
+
+    const depositDate = start_date ? new Date(start_date + 'T00:00:00') : new Date();
+    const { error: txnErr } = await sb.from('transactions').insert({
+        portfolio_id: pData.id, account_id: brokerId,
+        transaction_type: 'deposit', product_id: cashId,
+        quantity: initialDeposit, price_local: 1, net_amount_local: initialDeposit,
+        commission_local: 0,
+        executed_at: depositDate.toISOString(),
+        notes: 'Initial deposit',
+    });
+    if (txnErr) { showMsg('portfolio-msg', txnErr.message, 'error'); return; }
+
+    showMsg('portfolio-msg',
+        `"${name}" created · initial deposit ${initialDeposit} ${currency} recorded`, 'success');
+    ['p-name','p-start-date','p-initial-deposit'].forEach(id =>
+        document.getElementById(id).value = '');
+    await loadPortfolios();
+    clearMsgAfter('portfolio-msg');
+}
+
+// ── Recalculate portfolio stats ───────────────────────────────────────────────
+// The actual computation runs in Python via GitHub Actions:
+//   .github/workflows/recalc_portfolio.yml  (workflow_dispatch)
+// We trigger it with the user's fine-grained PAT (Actions: read+write scope on
+// this single repo). The PAT is stored in localStorage on this device only.
+
+const GH_OWNER     = 'AndyGE44';
+const GH_REPO      = 'Portfolio_Mangement';
+const GH_WORKFLOW  = 'recalc_portfolio.yml';
+const GH_BRANCH    = 'main';
+const GH_RUNS_URL  = `https://github.com/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}`;
+
+function getGhPat() {
+    let pat = localStorage.getItem('gh_pat');
+    if (!pat) {
+        pat = prompt(
+            "Paste a GitHub fine-grained PAT with 'Actions: Read and write' " +
+            `scope on ${GH_OWNER}/${GH_REPO}. Stored only in this browser.`
+        );
+        if (!pat) return null;
+        localStorage.setItem('gh_pat', pat.trim());
+    }
+    return pat.trim();
+}
+
+async function recalcStats(portfolioId, portfolioName) {
+    const pat = getGhPat();
+    if (!pat) { showMsg('stats-msg', 'PAT required to trigger recalc.', 'error'); return; }
+
+    const btn = event.target;
+    btn.disabled = true;
+    showMsg('stats-msg', `Triggering full recalc for "${portfolioName}"…`);
+
+    const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`;
+    let resp;
+    try {
+        resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${pat}`,
+                'Accept':        'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28',
+            },
+            body: JSON.stringify({
+                ref: GH_BRANCH,
+                inputs: { portfolio_id: String(portfolioId), mode: 'full' },
+            }),
+        });
+    } catch (e) {
+        btn.disabled = false;
+        showMsg('stats-msg', `Network error: ${e.message}`, 'error');
+        return;
+    }
+
+    btn.disabled = false;
+
+    if (resp.status === 401 || resp.status === 403) {
+        localStorage.removeItem('gh_pat');
+        showMsg('stats-msg',
+            'GitHub rejected the PAT (cleared). Click Recalc again to re-enter.',
+            'error');
+        return;
+    }
+    if (!resp.ok) {
+        const txt = await resp.text();
+        showMsg('stats-msg', `GitHub API ${resp.status}: ${txt}`, 'error');
+        return;
+    }
+    showMsg('stats-msg',
+        `Recalc queued for "${portfolioName}". Track progress: ` +
+        `<a href="${GH_RUNS_URL}" target="_blank" rel="noopener">Actions →</a>`,
+        'success');
+    clearMsgAfter('stats-msg', 8000);
+}
+
+// ── Add broker account ────────────────────────────────────────────────────────
+async function addBroker() {
+    const broker_id    = parseInt(document.getElementById('b-institution').value);
+    const name         = document.getElementById('b-name').value.trim();
+    const account_type = document.getElementById('b-type').value;
+    if (!name) return;
+    const { error } = await sb.from('user_brokers')
+        .insert({ broker_id, name, account_type, user_id: me.id });
+    if (error) { showMsg('broker-msg', error.message, 'error'); return; }
+    showMsg('broker-msg', `"${name}" added`, 'success');
+    document.getElementById('b-name').value = '';
+    await loadUserBrokers();
+    clearMsgAfter('broker-msg');
+}
+
+// ── Deposit / Withdraw Cash ───────────────────────────────────────────────────
+async function submitCash(type) {
+    const portfolioId = parseInt(document.getElementById('cw-portfolio').value);
+    const brokerId    = parseInt(document.getElementById('cw-broker').value);
+    const ccy         = document.getElementById('cw-ccy').value;
+    const amount      = parseFloat(document.getElementById('cw-amount').value);
+    const dateVal     = document.getElementById('cw-date').value;
+    const notes       = document.getElementById('cw-notes').value.trim() || null;
+
+    showMsg('cash-msg', '');
+    if (!portfolioId || !brokerId || !dateVal) {
+        showMsg('cash-msg', 'Portfolio, broker, and date are required.', 'error'); return;
+    }
+    if (!txnDateOk(portfolioId, dateVal, 'cash-msg')) return;
+    if (!amount || amount <= 0) {
+        showMsg('cash-msg', 'Enter a valid amount.', 'error'); return;
+    }
+    const cashId = cashProducts[ccy];
+    if (!cashId) { showMsg('cash-msg', `No cash product for ${ccy}.`, 'error'); return; }
+
+    const { error } = await sb.from('transactions').insert({
+        portfolio_id: portfolioId, account_id: brokerId,
+        transaction_type: type, product_id: cashId,
+        quantity: amount, price_local: 1, net_amount_local: amount,
+        commission_local: 0,
+        executed_at: new Date(dateVal).toISOString(), notes,
+    });
+    if (error) { showMsg('cash-msg', error.message, 'error'); return; }
+
+    const label = type === 'deposit' ? 'Deposit' : 'Withdrawal';
+    showMsg('cash-msg', `${label} of ${amount} ${ccy} recorded`, 'success');
+    document.getElementById('cw-amount').value = '';
+    document.getElementById('cw-notes').value  = '';
+    clearMsgAfter('cash-msg');
+}
+
+// ── FX Exchange ───────────────────────────────────────────────────────────────
+function computeFx() {
+    const fromAmt = parseFloat(document.getElementById('fx-from-amt').value) || 0;
+    const rate    = parseFloat(document.getElementById('fx-rate').value)     || 0;
+    const fromCcy = document.getElementById('fx-from-ccy').value;
+    const toCcy   = document.getElementById('fx-to-ccy').value;
+    if (fromAmt > 0 && rate > 0) {
+        const toAmt = fromAmt * rate;
+        document.getElementById('fx-to-amt').value = toAmt.toFixed(4);
+        document.getElementById('fx-info').textContent =
+            `Sell ${fromAmt} ${fromCcy} @ ${rate} → Receive ${toAmt.toFixed(4)} ${toCcy}`;
+    } else {
+        document.getElementById('fx-to-amt').value = '';
+        document.getElementById('fx-info').textContent = '';
+    }
+}
+
+function onFxToAmtEdit() {
+    const fromAmt = parseFloat(document.getElementById('fx-from-amt').value) || 0;
+    const toAmt   = parseFloat(document.getElementById('fx-to-amt').value)   || 0;
+    const fromCcy = document.getElementById('fx-from-ccy').value;
+    const toCcy   = document.getElementById('fx-to-ccy').value;
+    if (fromAmt > 0 && toAmt > 0) {
+        const impliedRate = toAmt / fromAmt;
+        document.getElementById('fx-rate').value = impliedRate.toFixed(6);
+        document.getElementById('fx-info').textContent =
+            `Sell ${fromAmt} ${fromCcy} @ ${impliedRate.toFixed(6)} → Receive ${toAmt} ${toCcy}`;
+    }
+}
+
+async function submitFx() {
+    const portfolioId = parseInt(document.getElementById('fx-portfolio').value);
+    const brokerId    = parseInt(document.getElementById('fx-broker').value);
+    const dateVal     = document.getElementById('fx-date').value;
+    const fromCcy     = document.getElementById('fx-from-ccy').value;
+    const toCcy       = document.getElementById('fx-to-ccy').value;
+    const fromAmt     = parseFloat(document.getElementById('fx-from-amt').value);
+    const toAmt       = parseFloat(document.getElementById('fx-to-amt').value);
+    const rate        = parseFloat(document.getElementById('fx-rate').value);
+    const notes       = document.getElementById('fx-notes').value.trim();
+
+    showMsg('fx-msg', '');
+    if (!portfolioId || !brokerId || !dateVal) {
+        showMsg('fx-msg', 'Portfolio, broker, and date are required.', 'error'); return;
+    }
+    if (!txnDateOk(portfolioId, dateVal, 'fx-msg')) return;
+    if (!fromAmt || !toAmt || !rate) {
+        showMsg('fx-msg', 'Fill in amounts and rate.', 'error'); return;
+    }
+    if (fromCcy === toCcy) {
+        showMsg('fx-msg', 'Sell and buy currencies must differ.', 'error'); return;
+    }
+    const fromId = cashProducts[fromCcy];
+    const toId   = cashProducts[toCcy];
+    if (!fromId) { showMsg('fx-msg', `No cash product for ${fromCcy}.`, 'error'); return; }
+    if (!toId)   { showMsg('fx-msg', `No cash product for ${toCcy}.`, 'error'); return; }
+
+    const fxNote = `FX ${fromCcy}→${toCcy} @${rate}${notes ? ' | ' + notes : ''}`;
+    const base   = {
+        portfolio_id: portfolioId, account_id: brokerId,
+        executed_at: new Date(dateVal).toISOString(),
+        commission_local: 0, notes: fxNote,
+    };
+
+    // FX = internal currency swap. Both legs are buy/sell on cash products
+    // (NOT deposit/withdrawal — those are reserved for external flows only).
+    const { error } = await sb.from('transactions').insert([
+        { ...base, transaction_type: 'sell', product_id: fromId,
+          quantity: fromAmt, price_local: 1, net_amount_local: fromAmt },
+        { ...base, transaction_type: 'buy',  product_id: toId,
+          quantity: toAmt,   price_local: 1, net_amount_local: toAmt   },
+    ]);
+    if (error) { showMsg('fx-msg', error.message, 'error'); return; }
+
+    showMsg('fx-msg',
+        `FX recorded: sold ${fromAmt} ${fromCcy}, received ${toAmt} ${toCcy} @ ${rate}`,
+        'success');
+    ['fx-from-amt','fx-rate','fx-to-amt','fx-notes'].forEach(id =>
+        document.getElementById(id).value = '');
+    document.getElementById('fx-info').textContent = '';
+    clearMsgAfter('fx-msg');
+}
+
+// ── Ticker search (active products only) ─────────────────────────────────────
+function onTickerInput() {
+    clearTimeout(tickerTimer);
+    const q = document.getElementById('t-ticker').value.trim();
+    if (q.length < 1) { hide('ticker-dd'); return; }
+    tickerTimer = setTimeout(() => fetchTickers(q), 220);
+}
+
+async function fetchTickers(q) {
+    const { data } = await sb.from('products')
+        .select('id, ticker, name, base_currency')
+        .eq('is_active', true)
+        .neq('asset_class', 'cash')
+        .or(`ticker.ilike.${q}%,name.ilike.%${q}%`)
+        .order('ticker').limit(10);
+    const dd = document.getElementById('ticker-dd');
+    if (!data?.length) { dd.classList.add('hidden'); return; }
+    dd.innerHTML = data.map(p => {
+        const safe = JSON.stringify(p).replace(/'/g, "\\'");
+        return `<div class="ticker-opt" onclick='pickTicker(${safe})'>
+            <span class="ticker-sym">${p.ticker}</span>
+            <span class="ticker-name">${p.name || ''}</span>
+        </div>`;
+    }).join('');
+    dd.classList.remove('hidden');
+}
+
+function pickTicker(p) {
+    pickedProduct = p;
+    document.getElementById('t-ticker').value = p.ticker;
+    const el = document.getElementById('ticker-selected');
+    el.textContent = `${p.ticker}  ${p.name || ''}  (${p.base_currency})`;
+    el.classList.add('has-value');
+    hide('ticker-dd');
+    updateBuySellHint();
+    if (document.getElementById('t-type').value === 'split') computeSplit();
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.ticker-wrap')) hide('ticker-dd');
+});
+
+// ── Transaction type UI ───────────────────────────────────────────────────────
+function onTypeChange() {
+    const type       = document.getElementById('t-type').value;
+    const isBuySell  = type === 'buy' || type === 'sell';
+    const isDividend = type === 'dividend';
+    const isSplit    = type === 'split';
+
+    toggle('row-ticker',   isBuySell || isSplit);
+    toggle('row-buysell',  isBuySell);
+    toggle('buysell-hint', isBuySell);
+    toggle('row-dividend', isDividend);
+    toggle('row-split',    isSplit);
+    toggle('split-info',   isSplit);
+
+    if (!isBuySell && !isSplit) {
+        pickedProduct = null;
+        document.getElementById('t-ticker').value = '';
+        document.getElementById('ticker-selected').textContent = 'No ticker selected';
+        document.getElementById('ticker-selected').classList.remove('has-value');
+    }
+}
+
+function onContextChange() {
+    if (document.getElementById('t-type').value === 'split') computeSplit();
+}
+
+function updateBuySellHint() {
+    const type       = document.getElementById('t-type').value;
+    const qty        = parseFloat(document.getElementById('t-qty').value)        || 0;
+    const price      = parseFloat(document.getElementById('t-price').value)      || 0;
+    const commission = parseFloat(document.getElementById('t-commission').value) || 0;
+    const gross      = qty * price;
+    const net        = type === 'buy' ? gross + commission : gross - commission;
+    const ccy        = pickedProduct?.base_currency || '';
+    const action     = type === 'buy' ? 'Cash withdrawal' : 'Cash deposit';
+    document.getElementById('buysell-hint').textContent = gross > 0
+        ? `${action}: ${net.toFixed(2)} ${ccy}  (${gross.toFixed(2)} ${type === 'buy' ? '+' : '−'} ${commission.toFixed(2)} commission)`
+        : '';
+}
+
+// ── Split compute ─────────────────────────────────────────────────────────────
+async function computeSplit() {
+    const infoEl = document.getElementById('split-info');
+    if (!pickedProduct) { infoEl.textContent = 'Select a ticker first'; return; }
+    const ratio = parseFloat(document.getElementById('t-split-ratio').value);
+    if (!ratio || ratio <= 0) { infoEl.textContent = ''; return; }
+
+    const portfolioId = parseInt(document.getElementById('t-portfolio').value);
+    const brokerId    = parseInt(document.getElementById('t-broker').value);
+    if (!portfolioId || !brokerId) return;
+
+    const { data } = await sb.from('portfolio_holdings')
+        .select('quantity')
+        .eq('portfolio_id', portfolioId)
+        .eq('product_id', pickedProduct.id)
+        .eq('user_broker_id', brokerId)
+        .maybeSingle();
+
+    const currentQty = parseFloat(data?.quantity || 0);
+    splitExtra = currentQty > 0 ? currentQty * (ratio - 1) : 0;
+    infoEl.textContent = currentQty > 0
+        ? `${currentQty} shares × ${ratio} = ${(currentQty * ratio).toFixed(4)} total  (+${splitExtra.toFixed(4)} extra)`
+        : 'No current holding found for this portfolio / broker';
+}
+
+// ── Submit transaction ────────────────────────────────────────────────────────
+async function submitTxn() {
+    const type        = document.getElementById('t-type').value;
+    const portfolioId = parseInt(document.getElementById('t-portfolio').value);
+    const brokerId    = parseInt(document.getElementById('t-broker').value);
+    const dateVal     = document.getElementById('t-date').value;
+    const notes       = document.getElementById('t-notes').value.trim() || null;
+    showMsg('txn-msg', '');
+
+    if (!portfolioId || !brokerId || !dateVal) {
+        showMsg('txn-msg', 'Portfolio, broker account, and date are required.', 'error'); return;
+    }
+    if (!txnDateOk(portfolioId, dateVal, 'txn-msg')) return;
+
+    const base = {
+        portfolio_id: portfolioId, account_id: brokerId,
+        executed_at: new Date(dateVal).toISOString(),
+        notes, commission_local: 0,
+    };
+
+    let rows = [];
+
+    if (type === 'buy' || type === 'sell') {
+        if (!pickedProduct) { showMsg('txn-msg', 'Select a ticker.', 'error'); return; }
+        const qty        = parseFloat(document.getElementById('t-qty').value);
+        const price      = parseFloat(document.getElementById('t-price').value);
+        const commission = parseFloat(document.getElementById('t-commission').value) || 0;
+        if (!qty || !price) { showMsg('txn-msg', 'Quantity and price are required.', 'error'); return; }
+
+        const gross  = qty * price;
+        const net    = type === 'buy' ? gross + commission : gross - commission;
+        const cashId = cashProducts[pickedProduct.base_currency];
+
+        rows.push({ ...base, transaction_type: type,
+            product_id: pickedProduct.id, quantity: qty,
+            price_local: price, commission_local: commission,
+            net_amount_local: gross });
+
+        if (cashId) {
+            // Cash leg: stock buy ⇒ sell cash; stock sell ⇒ buy cash.
+            // NOT deposit/withdrawal — those are reserved for external flows.
+            rows.push({ ...base,
+                transaction_type: type === 'buy' ? 'sell' : 'buy',
+                product_id: cashId, quantity: net,
+                price_local: 1, net_amount_local: net });
+        }
+
+    } else if (type === 'dividend') {
+        const amount = parseFloat(document.getElementById('t-div-amount').value);
+        const ccy    = document.getElementById('t-div-ccy').value;
+        const cashId = cashProducts[ccy];
+        if (!amount)  { showMsg('txn-msg', 'Amount is required.', 'error'); return; }
+        if (!cashId)  { showMsg('txn-msg', `No cash product for ${ccy}.`, 'error'); return; }
+        rows.push({ ...base, transaction_type: 'dividend',
+            product_id: cashId, quantity: amount,
+            price_local: 1, net_amount_local: amount });
+
+    } else if (type === 'split') {
+        if (!pickedProduct) { showMsg('txn-msg', 'Select a ticker.', 'error'); return; }
+        if (!splitExtra)    { showMsg('txn-msg', 'No holding found — check portfolio / broker / ticker.', 'error'); return; }
+        rows.push({ ...base, transaction_type: 'split',
+            product_id: pickedProduct.id, quantity: splitExtra,
+            price_local: 0, net_amount_local: 0 });
+    }
+
+    const { error } = await sb.from('transactions').insert(rows);
+    if (error) { showMsg('txn-msg', error.message, 'error'); return; }
+
+    const labels = { buy: 'Buy', sell: 'Sell', dividend: 'Dividend', split: 'Split' };
+    const extra  = rows.length > 1 ? ' (+ cash leg auto-recorded)' : '';
+    showMsg('txn-msg', `${labels[type]} recorded${extra}`, 'success');
+    resetTxnForm();
+    clearMsgAfter('txn-msg', 4000);
+}
+
+function resetTxnForm() {
+    pickedProduct = null; splitExtra = 0;
+    ['t-ticker','t-qty','t-price','t-commission','t-div-amount','t-split-ratio','t-notes']
+        .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ticker-selected').textContent = 'No ticker selected';
+    document.getElementById('ticker-selected').classList.remove('has-value');
+    document.getElementById('split-info').textContent  = '';
+    document.getElementById('buysell-hint').textContent = '';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function txnDateOk(portfolioId, dateVal, msgId) {
+    const p = portfolios.find(x => x.id === portfolioId);
+    if (p?.start_date && dateVal < p.start_date) {
+        showMsg(msgId, `Date cannot be before portfolio start date (${p.start_date}).`, 'error');
+        return false;
+    }
+    return true;
+}
+
+function show(id)  { document.getElementById(id).classList.remove('hidden'); }
+function hide(id)  { document.getElementById(id).classList.add('hidden'); }
+function toggle(id, visible) { document.getElementById(id).classList.toggle('hidden', !visible); }
+
+function showMsg(id, msg, type = 'error') {
+    document.getElementById(id).innerHTML = msg
+        ? `<div class="alert alert-${type}">${msg}</div>` : '';
+}
+function clearMsgAfter(id, ms = 3000) { setTimeout(() => showMsg(id, ''), ms); }
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>

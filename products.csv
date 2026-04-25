@@ -1,0 +1,7 @@
+ticker,vendor_ticker,name,exchange,currency,asset_class,backfill_start
+AAPL,,,,,stock,2020-01-01
+MSFT,,,,,stock,2020-01-01
+BRK.B,BRK-B,Berkshire Hathaway Inc.,NMS,USD,stock,
+KIWI.NZ,,,,,stock,
+SPY,,,,,etf,2018-01-01
+

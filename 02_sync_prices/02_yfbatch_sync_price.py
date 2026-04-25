@@ -66,14 +66,16 @@ def main():
 
     try:
         # 核心提速：使用 yf.download 一次性获取所有数据
-        # auto_adjust=False 保持原始价格
+        # auto_adjust=True ⇒ 使用拆分/股息调整后的价格
+        #   这样持仓数量按拆分后的份额维护时，历史 close 也会自动对齐，
+        #   日 NAV 在拆股日不会出现"虚假跳动"。
         # threads=True 允许 yfinance 内部使用优化的并发
-       
+
         df = yf.download(
-            tickers_list, 
-            start=start_date, 
-            end=end_date, 
-            auto_adjust=False,
+            tickers_list,
+            start=start_date,
+            end=end_date,
+            auto_adjust=True,
             threads=True,
             ignore_tz=True # 忽略时区，保持纯粹的 YYYY-MM-DD
         )

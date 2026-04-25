@@ -1,0 +1,53 @@
+name: Recalculate Portfolio Stats
+
+# Triggered on-demand from the web UI ("↻ Recalc" button) via the GitHub
+# REST API: POST /repos/{owner}/{repo}/actions/workflows/recalc_portfolio.yml/dispatches
+on:
+  workflow_dispatch:
+    inputs:
+      portfolio_id:
+        description: "Portfolio id to recalculate (leave blank for ALL portfolios)"
+        required: false
+        type: string
+      mode:
+        description: "Range to recalc"
+        required: true
+        default: "full"
+        type: choice
+        options: ["full", "today"]
+
+jobs:
+  recalc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run rebuild
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          PORTFOLIO_ID:  ${{ inputs.portfolio_id }}
+          MODE:          ${{ inputs.mode }}
+        run: |
+          ARGS=""
+          if [ -n "$PORTFOLIO_ID" ]; then
+            ARGS="$ARGS --portfolio $PORTFOLIO_ID"
+          fi
+          if [ "$MODE" = "full" ]; then
+            ARGS="$ARGS --full"
+          else
+            ARGS="$ARGS --date $(date -u +%Y-%m-%d)"
+          fi
+          echo "Running: python 07_rebuild_portfolio_stats.py $ARGS"
+          python 07_rebuild_portfolio_stats.py $ARGS
