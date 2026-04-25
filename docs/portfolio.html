@@ -28,7 +28,7 @@
         a.nav-link:hover { color: #c9d1d9; }
 
         /* ── Layout ── */
-        main { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+        main { max-width: 1280px; margin: 0 auto; padding: 24px 20px; }
 
         /* ── Login ── */
         .login-wrap { max-width: 340px; margin: 80px auto 0; }
@@ -46,7 +46,29 @@
             color: #58a6ff; font-size: 11px; letter-spacing: 2px;
             text-transform: uppercase; margin-bottom: 16px;
             padding-bottom: 10px; border-bottom: 1px solid #21262d;
+            display: flex; align-items: center; justify-content: space-between;
         }
+        .card-title .title-meta {
+            color: #484f58; font-size: 10px; letter-spacing: 1px;
+            font-weight: normal; text-transform: none;
+        }
+
+        /* ── Toolbar (top sticky-ish bar) ── */
+        .toolbar {
+            background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+            padding: 12px 16px; margin-bottom: 18px;
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+        }
+        .toolbar-left  { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 320px; }
+        .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tb-label  { color: #8b949e; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .tb-select {
+            background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+            color: #58a6ff; padding: 6px 10px; height: 32px;
+            font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold;
+            outline: none; min-width: 200px; cursor: pointer;
+        }
+        .tb-select:focus { border-color: #58a6ff; }
 
         /* ── Form ── */
         .form-row {
@@ -79,8 +101,10 @@
             background: transparent; border: 1px solid #30363d; color: #8b949e;
             border-radius: 4px; padding: 0 12px; height: 30px;
             font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer;
+            white-space: nowrap;
         }
         .btn-ghost:hover { border-color: #8b949e; color: #c9d1d9; }
+        .btn-ghost.active { border-color: #58a6ff; color: #58a6ff; }
         .btn-blue  { background: #1f6feb; }
         .btn-blue:hover  { background: #388bfd; }
         .btn-red   { background: #b91c1c; }
@@ -92,8 +116,9 @@
         .alert { padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 12px; }
         .alert-error   { background: #2d1117; border: 1px solid #f85149; color: #f85149; }
         .alert-success { background: #0f2d1c; border: 1px solid #3fb950; color: #3fb950; }
+        .alert-info    { background: #0c1c2e; border: 1px solid #1f6feb; color: #58a6ff; }
 
-        /* ── Item list ── */
+        /* ── Item list (broker/portfolio side panel) ── */
         .item-list { margin-bottom: 16px; }
         .item-row {
             display: flex; justify-content: space-between; align-items: center;
@@ -123,8 +148,6 @@
         .ticker-opt:hover { background: #21262d; }
         .ticker-sym  { color: #58a6ff; font-weight: bold; font-size: 12px; }
         .ticker-name { color: #8b949e; font-size: 11px; }
-
-        /* ── Ticker selected ── */
         .ticker-selected { color: #8b949e; font-size: 11px; padding: 8px 0 0; min-height: 18px; }
         .ticker-selected.has-value { color: #3fb950; }
 
@@ -132,11 +155,95 @@
         .info-line { font-size: 11px; padding: 3px 0; min-height: 18px; color: #8b949e; }
         .info-split { color: #a371f7; }
         .info-fx    { color: #e3b341; }
-
-        /* ── FX arrow ── */
         .fx-arrow { color: #484f58; font-size: 18px; padding-bottom: 2px; align-self: flex-end; }
 
         .hidden { display: none !important; }
+
+        /* ── Metrics grid (overview) ── */
+        .metrics {
+            display: grid; gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+        .metric {
+            background: #0d1117; border: 1px solid #21262d; border-radius: 4px;
+            padding: 10px 12px;
+        }
+        .metric-label {
+            color: #8b949e; font-size: 9px; letter-spacing: 1.5px;
+            text-transform: uppercase; margin-bottom: 6px;
+        }
+        .metric-value { color: #c9d1d9; font-size: 16px; font-weight: bold; }
+        .metric-value.pos { color: #3fb950; }
+        .metric-value.neg { color: #f85149; }
+        .metric-sub { color: #6e7681; font-size: 10px; margin-top: 3px; }
+
+        /* ── NAV by broker ── */
+        .nav-broker-grid {
+            display: grid; gap: 10px; margin-top: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+        .nav-broker {
+            background: #0d1117; border: 1px solid #21262d; border-radius: 4px;
+            padding: 9px 12px;
+        }
+        .nav-broker-name { color: #58a6ff; font-size: 11px; font-weight: bold; }
+        .nav-broker-val  { color: #c9d1d9; font-size: 14px; margin-top: 4px; font-weight: bold; }
+        .nav-broker-pct  { color: #6e7681; font-size: 10px; margin-top: 2px; }
+
+        /* ── Holdings table ── */
+        .table-wrap { overflow-x: auto; }
+        table.holdings {
+            width: 100%; border-collapse: collapse; font-size: 12px;
+        }
+        table.holdings th {
+            color: #8b949e; font-size: 10px; letter-spacing: 1px;
+            text-transform: uppercase; text-align: right;
+            padding: 8px 10px; border-bottom: 1px solid #30363d;
+            white-space: nowrap; font-weight: normal;
+        }
+        table.holdings th.l { text-align: left; }
+        table.holdings td {
+            padding: 8px 10px; text-align: right;
+            border-bottom: 1px solid #21262d; white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+        table.holdings td.l { text-align: left; }
+        table.holdings tr.row { cursor: pointer; }
+        table.holdings tr.row:hover td { background: #1c2128; }
+        table.holdings tr.row.expanded td { background: #1c2128; }
+        table.holdings tr.sub td {
+            background: #0a0e13 !important; color: #8b949e;
+            font-size: 11px; padding: 5px 10px 5px 24px;
+            border-bottom: 1px solid #161b22;
+        }
+        table.holdings tr.sub td.l { color: #8b949e; padding-left: 36px; }
+        table.holdings tr.totals td {
+            font-weight: bold; color: #c9d1d9;
+            background: #1c2128; border-top: 2px solid #30363d; border-bottom: none;
+        }
+        .ticker-cell  { color: #58a6ff; font-weight: bold; }
+        .class-pill {
+            display: inline-block; padding: 2px 7px; border-radius: 9px;
+            font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+            background: #21262d; color: #8b949e;
+        }
+        .class-pill.stock { background: #0c2d6b; color: #79c0ff; }
+        .class-pill.etf   { background: #1c4828; color: #56d364; }
+        .class-pill.cash  { background: #4a3416; color: #e3b341; }
+        .pos { color: #3fb950 !important; }
+        .neg { color: #f85149 !important; }
+        .muted { color: #6e7681; }
+        .chevron {
+            display: inline-block; width: 10px; color: #6e7681;
+            transition: transform 0.15s;
+        }
+        .row.expanded .chevron { transform: rotate(90deg); color: #58a6ff; }
+
+        /* ── Action button row above holdings ── */
+        .action-row {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
     </style>
 </head>
 <body>
@@ -172,11 +279,78 @@
     <!-- ── App ── -->
     <div id="app-section" class="hidden">
 
-        <!-- ── Portfolios ── -->
+        <!-- ── Toolbar ── -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <span class="tb-label">Portfolio</span>
+                <select id="active-portfolio" class="tb-select" onchange="onActivePortfolioChange()"></select>
+                <button class="btn-ghost" id="btn-refresh" onclick="loadAndRender()" title="Reload data">↻</button>
+                <button class="btn-ghost" id="btn-recalc-cur" onclick="recalcCurrent()" title="Recalc this portfolio via GitHub Actions">↻ Recalc</button>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn-ghost" onclick="togglePanel('panel-portfolio')">+ Portfolio</button>
+                <button class="btn-ghost" onclick="togglePanel('panel-broker')">+ Broker</button>
+                <button class="btn-ghost" onclick="togglePanel('panel-txn')">+ Txn</button>
+                <button class="btn-ghost" onclick="togglePanel('panel-cash')">Cash</button>
+                <button class="btn-ghost" onclick="togglePanel('panel-fx')">FX</button>
+            </div>
+        </div>
+
+        <div id="stats-msg"></div>
+
+        <!-- ── Overview ── -->
+        <div class="card" id="overview-card">
+            <div class="card-title">
+                Overview
+                <span class="title-meta" id="overview-meta"></span>
+            </div>
+            <div class="metrics" id="metrics-grid"></div>
+            <div id="nav-broker-section" class="hidden">
+                <div style="margin-top:18px;color:#8b949e;font-size:10px;letter-spacing:1.5px;text-transform:uppercase">
+                    NAV by Broker
+                </div>
+                <div class="nav-broker-grid" id="nav-broker-grid"></div>
+            </div>
+        </div>
+
+        <!-- ── Holdings ── -->
         <div class="card">
-            <div class="card-title">My Portfolios</div>
+            <div class="card-title">
+                Holdings
+                <span class="title-meta" id="holdings-meta"></span>
+            </div>
+            <div class="table-wrap">
+                <table class="holdings" id="holdings-table">
+                    <thead>
+                        <tr>
+                            <th class="l">Ticker</th>
+                            <th class="l">Class</th>
+                            <th>Ccy</th>
+                            <th>Qty</th>
+                            <th>Avg Cost</th>
+                            <th>Mkt Price</th>
+                            <th>Mkt Value (USD)</th>
+                            <th>Principal (USD)</th>
+                            <th>Unrl P&amp;L</th>
+                            <th>Unrl P&amp;L %</th>
+                            <th>% Prin</th>
+                            <th>% MV</th>
+                            <th class="l">Account</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdings-body"></tbody>
+                </table>
+            </div>
+            <div class="empty-msg hidden" id="holdings-empty">No holdings — record some transactions to see your positions here.</div>
+        </div>
+
+        <!-- ── Collapsible: Add Portfolio ── -->
+        <div class="card hidden" id="panel-portfolio">
+            <div class="card-title">
+                Add Portfolio
+                <span class="title-meta">Initial deposit creates the seeding transaction</span>
+            </div>
             <div id="portfolios-list" class="item-list"></div>
-            <div id="stats-msg"></div>
             <hr class="divider">
             <div class="form-row">
                 <div class="form-group">
@@ -212,8 +386,8 @@
             <div id="portfolio-msg"></div>
         </div>
 
-        <!-- ── Broker Accounts ── -->
-        <div class="card">
+        <!-- ── Collapsible: Add Broker ── -->
+        <div class="card hidden" id="panel-broker">
             <div class="card-title">My Broker Accounts</div>
             <div id="brokers-list" class="item-list"></div>
             <hr class="divider">
@@ -241,8 +415,99 @@
             <div id="broker-msg"></div>
         </div>
 
-        <!-- ── Deposit / Withdraw Cash ── -->
-        <div class="card">
+        <!-- ── Collapsible: Add Transaction ── -->
+        <div class="card hidden" id="panel-txn">
+            <div class="card-title">Add Transaction</div>
+            <div id="txn-msg"></div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Portfolio</label>
+                    <select id="t-portfolio" style="width:175px" onchange="onContextChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Broker Account</label>
+                    <select id="t-broker" style="width:175px" onchange="onContextChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="t-type" style="width:120px" onchange="onTypeChange()">
+                        <option value="buy">Buy</option>
+                        <option value="sell">Sell</option>
+                        <option value="dividend">Dividend</option>
+                        <option value="split">Split</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="t-date" style="width:145px">
+                </div>
+            </div>
+
+            <div class="form-row" id="row-ticker">
+                <div class="form-group ticker-wrap">
+                    <label>Ticker</label>
+                    <input type="text" id="t-ticker" placeholder="Search ticker…" autocomplete="off"
+                           oninput="onTickerInput()" style="width:200px">
+                    <div class="ticker-dropdown hidden" id="ticker-dd"></div>
+                </div>
+                <div class="form-group">
+                    <div class="ticker-selected" id="ticker-selected">No ticker selected</div>
+                </div>
+            </div>
+
+            <div class="form-row hidden" id="row-dividend">
+                <div class="form-group">
+                    <label>Cash Currency</label>
+                    <select id="t-div-ccy" style="width:100px"></select>
+                </div>
+                <div class="form-group">
+                    <label>Amount Received</label>
+                    <input type="number" id="t-div-amount" placeholder="0.00" min="0" step="any" style="width:140px">
+                </div>
+            </div>
+
+            <div class="form-row hidden" id="row-buysell">
+                <div class="form-group">
+                    <label>Quantity (shares)</label>
+                    <input type="number" id="t-qty" placeholder="0" min="0" step="any" style="width:130px"
+                           oninput="updateBuySellHint()">
+                </div>
+                <div class="form-group">
+                    <label>Price per Share</label>
+                    <input type="number" id="t-price" placeholder="0.00" min="0" step="any" style="width:120px"
+                           oninput="updateBuySellHint()">
+                </div>
+                <div class="form-group">
+                    <label>Commission</label>
+                    <input type="number" id="t-commission" placeholder="0.00" min="0" step="any" style="width:110px"
+                           oninput="updateBuySellHint()">
+                </div>
+            </div>
+            <div class="info-line hidden" id="buysell-hint"></div>
+
+            <div class="form-row hidden" id="row-split">
+                <div class="form-group">
+                    <label>Split Ratio (new : 1 old)</label>
+                    <input type="number" id="t-split-ratio" placeholder="e.g. 3" min="0.001" step="any"
+                           oninput="computeSplit()" style="width:150px">
+                </div>
+            </div>
+            <div class="info-line info-split hidden" id="split-info"></div>
+
+            <div class="form-row" style="margin-top:4px">
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <input type="text" id="t-notes" placeholder="Optional" style="width:380px">
+                </div>
+            </div>
+
+            <div style="margin-top:6px">
+                <button class="btn" onclick="submitTxn()">Submit Transaction</button>
+            </div>
+        </div>
+
+        <!-- ── Collapsible: Cash ── -->
+        <div class="card hidden" id="panel-cash">
             <div class="card-title">Deposit / Withdraw Cash</div>
             <div id="cash-msg"></div>
             <div class="form-row">
@@ -279,8 +544,8 @@
             </div>
         </div>
 
-        <!-- ── FX Exchange ── -->
-        <div class="card">
+        <!-- ── Collapsible: FX ── -->
+        <div class="card hidden" id="panel-fx">
             <div class="card-title">FX Exchange</div>
             <div id="fx-msg"></div>
             <div class="form-row">
@@ -335,118 +600,48 @@
             </div>
         </div>
 
-        <!-- ── Add Transaction ── -->
-        <div class="card">
-            <div class="card-title">Add Transaction</div>
-            <div id="txn-msg"></div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Portfolio</label>
-                    <select id="t-portfolio" style="width:175px" onchange="onContextChange()"></select>
-                </div>
-                <div class="form-group">
-                    <label>Broker Account</label>
-                    <select id="t-broker" style="width:175px" onchange="onContextChange()"></select>
-                </div>
-                <div class="form-group">
-                    <label>Type</label>
-                    <select id="t-type" style="width:120px" onchange="onTypeChange()">
-                        <option value="buy">Buy</option>
-                        <option value="sell">Sell</option>
-                        <option value="dividend">Dividend</option>
-                        <option value="split">Split</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Date</label>
-                    <input type="date" id="t-date" style="width:145px">
-                </div>
-            </div>
-
-            <!-- Ticker (buy / sell / split) -->
-            <div class="form-row" id="row-ticker">
-                <div class="form-group ticker-wrap">
-                    <label>Ticker</label>
-                    <input type="text" id="t-ticker" placeholder="Search ticker…" autocomplete="off"
-                           oninput="onTickerInput()" style="width:200px">
-                    <div class="ticker-dropdown hidden" id="ticker-dd"></div>
-                </div>
-                <div class="form-group">
-                    <div class="ticker-selected" id="ticker-selected">No ticker selected</div>
-                </div>
-            </div>
-
-            <!-- Dividend -->
-            <div class="form-row hidden" id="row-dividend">
-                <div class="form-group">
-                    <label>Cash Currency</label>
-                    <select id="t-div-ccy" style="width:100px"></select>
-                </div>
-                <div class="form-group">
-                    <label>Amount Received</label>
-                    <input type="number" id="t-div-amount" placeholder="0.00" min="0" step="any" style="width:140px">
-                </div>
-            </div>
-
-            <!-- Buy / Sell -->
-            <div class="form-row hidden" id="row-buysell">
-                <div class="form-group">
-                    <label>Quantity (shares)</label>
-                    <input type="number" id="t-qty" placeholder="0" min="0" step="any" style="width:130px"
-                           oninput="updateBuySellHint()">
-                </div>
-                <div class="form-group">
-                    <label>Price per Share</label>
-                    <input type="number" id="t-price" placeholder="0.00" min="0" step="any" style="width:120px"
-                           oninput="updateBuySellHint()">
-                </div>
-                <div class="form-group">
-                    <label>Commission</label>
-                    <input type="number" id="t-commission" placeholder="0.00" min="0" step="any" style="width:110px"
-                           oninput="updateBuySellHint()">
-                </div>
-            </div>
-            <div class="info-line hidden" id="buysell-hint"></div>
-
-            <!-- Split -->
-            <div class="form-row hidden" id="row-split">
-                <div class="form-group">
-                    <label>Split Ratio (new : 1 old)</label>
-                    <input type="number" id="t-split-ratio" placeholder="e.g. 3" min="0.001" step="any"
-                           oninput="computeSplit()" style="width:150px">
-                </div>
-            </div>
-            <div class="info-line info-split hidden" id="split-info"></div>
-
-            <div class="form-row" style="margin-top:4px">
-                <div class="form-group">
-                    <label>Notes (optional)</label>
-                    <input type="text" id="t-notes" placeholder="Optional" style="width:380px">
-                </div>
-            </div>
-
-            <div style="margin-top:6px">
-                <button class="btn" onclick="submitTxn()">Submit Transaction</button>
-            </div>
-        </div>
-
     </div><!-- /app-section -->
 </main>
 
 <script>
-// ── Globals ───────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  Globals
+// ═════════════════════════════════════════════════════════════════════════════
 const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
-let me            = null;
-let portfolios    = [];
-let userBrokers   = [];
-let cashProducts  = {};   // { 'USD': id, 'HKD': id }
-let pickedProduct = null;
-let splitExtra    = 0;
+let me                  = null;
+let portfolios          = [];
+let userBrokers         = [];
+let cashProducts        = {};   // { 'USD': id, 'HKD': id }
+let pickedProduct       = null;
+let splitExtra          = 0;
 let tickerTimer;
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+let currentPortfolioId  = null;
+let viewData            = null;   // { transactions, products, latestQuotes, fxLatest, statsLast2 }
+
+// Sign convention for transaction quantity (mirrors 07_rebuild_portfolio_stats.py)
+const TXN_SIGN = {
+    buy: +1, sell: -1, deposit: +1, withdrawal: -1,
+    dividend: +1, interest: +1, fee: -1, tax: -1,
+    exchange: +1, split: +1,
+};
+const VENDOR_YAHOO = 3;
+
+// Fmt helpers
+const fmt = {
+    money:  v => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    qty:    v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 4 }),
+    price:  v => Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+    pct:    v => (Number(v) * 100).toFixed(2) + '%',
+    pctRaw: v => Number(v).toFixed(2) + '%',
+};
+const sign = v => v >= 0 ? 'pos' : 'neg';
+const withSign = v => (v > 0 ? '+' : '') + fmt.money(v);
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Auth
+// ═════════════════════════════════════════════════════════════════════════════
 async function signIn() {
     const email    = document.getElementById('inp-email').value.trim();
     const password = document.getElementById('inp-password').value;
@@ -478,19 +673,38 @@ async function boot() {
 
     await Promise.all([loadPortfolios(), loadUserBrokers(), loadInstitutions(), loadCashProducts()]);
     onTypeChange();
+    await loadAndRender();
 }
 
-// ── Data loaders ──────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  Reference data loaders (existing behavior)
+// ═════════════════════════════════════════════════════════════════════════════
 async function loadPortfolios() {
     const { data } = await sb.from('portfolios')
-        .select('id, name, base_currency, start_date').order('created_at');
+        .select('id, name, base_currency, start_date, created_at').order('created_at');
     portfolios = data || [];
-    renderPortfolios();
-    ['t-portfolio','cw-portfolio','fx-portfolio'].forEach(id => {
-        document.getElementById(id).innerHTML = portfolios.length
-            ? portfolios.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
-            : '<option value="">— Add a portfolio first —</option>';
-    });
+    renderPortfoliosList();
+
+    // The form selects (cw-portfolio, fx-portfolio, t-portfolio)
+    const opts = portfolios.length
+        ? portfolios.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
+        : '<option value="">— Add a portfolio first —</option>';
+    ['t-portfolio','cw-portfolio','fx-portfolio'].forEach(id =>
+        document.getElementById(id).innerHTML = opts);
+
+    // Toolbar selector
+    const sel = document.getElementById('active-portfolio');
+    if (!portfolios.length) {
+        sel.innerHTML = '<option value="">— No portfolio —</option>';
+        currentPortfolioId = null;
+    } else {
+        sel.innerHTML = portfolios.map(p =>
+            `<option value="${p.id}">${p.name} (${p.base_currency})</option>`).join('');
+        if (!currentPortfolioId || !portfolios.find(p => p.id === currentPortfolioId))
+            currentPortfolioId = portfolios[0].id;
+        sel.value = String(currentPortfolioId);
+    }
+
     populateCurrencySelects();
 }
 
@@ -498,7 +712,7 @@ async function loadUserBrokers() {
     const { data } = await sb.from('user_brokers')
         .select('id, name, account_type, broker:broker_id(name)').order('created_at');
     userBrokers = data || [];
-    renderBrokers();
+    renderBrokersList();
     const opts = userBrokers.length
         ? userBrokers.map(b => `<option value="${b.id}">${b.name}</option>`).join('')
         : '<option value="">— Add a broker first —</option>';
@@ -527,25 +741,21 @@ function populateCurrencySelects() {
     const opts = base.map(c => `<option value="${c}">${c}</option>`).join('');
     ['cw-ccy','t-div-ccy','fx-from-ccy','fx-to-ccy'].forEach(id =>
         document.getElementById(id).innerHTML = opts);
-    // Default FX buy currency to second option
     const toSel = document.getElementById('fx-to-ccy');
     if (toSel.options.length > 1) toSel.selectedIndex = 1;
 }
 
-// ── Renders ───────────────────────────────────────────────────────────────────
-function renderPortfolios() {
+function renderPortfoliosList() {
     const el = document.getElementById('portfolios-list');
     if (!portfolios.length) { el.innerHTML = '<div class="empty-msg">No portfolios yet</div>'; return; }
     el.innerHTML = portfolios.map(p => `
         <div class="item-row">
             <span class="item-name">${p.name}</span>
             <span class="item-meta">${p.base_currency}${p.start_date ? ' · started ' + p.start_date : ''}</span>
-            <button class="btn-ghost" style="font-size:10px;padding:0 8px;height:24px"
-                    onclick="recalcStats(${p.id}, '${p.name.replace(/'/g,"\\'")}')">↻ Recalc</button>
         </div>`).join('');
 }
 
-function renderBrokers() {
+function renderBrokersList() {
     const el = document.getElementById('brokers-list');
     if (!userBrokers.length) { el.innerHTML = '<div class="empty-msg">No broker accounts yet</div>'; return; }
     el.innerHTML = userBrokers.map(b => `
@@ -555,7 +765,501 @@ function renderBrokers() {
         </div>`).join('');
 }
 
-// ── Add portfolio ─────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  HOLDINGS / OVERVIEW — load + compute + render
+// ═════════════════════════════════════════════════════════════════════════════
+
+function onActivePortfolioChange() {
+    const v = document.getElementById('active-portfolio').value;
+    currentPortfolioId = v ? parseInt(v) : null;
+    loadAndRender();
+}
+
+async function loadAndRender() {
+    if (!currentPortfolioId) {
+        renderEmpty();
+        return;
+    }
+    showOverviewLoading();
+    try {
+        viewData = await fetchViewData(currentPortfolioId);
+        renderOverview();
+        renderHoldings();
+    } catch (e) {
+        console.error(e);
+        showMsg('stats-msg', `Failed to load holdings: ${e.message}`, 'error');
+    }
+}
+
+async function fetchViewData(portfolioId) {
+    // 1. Transactions for this portfolio
+    const { data: txns, error: e1 } = await sb.from('transactions')
+        .select('id, transaction_type, product_id, account_id, quantity, price_local, commission_local, executed_at, notes')
+        .eq('portfolio_id', portfolioId)
+        .order('executed_at, id');
+    if (e1) throw e1;
+
+    // 2. Product metadata for everything referenced
+    const productIds = [...new Set((txns || []).map(t => t.product_id))];
+    let products = [];
+    if (productIds.length) {
+        const { data: pd, error: e2 } = await sb.from('products')
+            .select('id, ticker, name, asset_class, base_currency')
+            .in('id', productIds);
+        if (e2) throw e2;
+        products = pd || [];
+    }
+
+    // 3. Latest close per non-cash product (last 30 calendar days is plenty)
+    const stockIds = products.filter(p => p.asset_class !== 'cash').map(p => p.id);
+    const since30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    let quotes = [];
+    if (stockIds.length) {
+        const { data: qd, error: e3 } = await sb.from('quotes')
+            .select('product_id, close, trade_date')
+            .in('product_id', stockIds)
+            .eq('vendor_id', VENDOR_YAHOO)
+            .gte('trade_date', since30)
+            .order('trade_date', { ascending: false });
+        if (e3) throw e3;
+        quotes = qd || [];
+    }
+    const latestQuotes = new Map();   // pid -> { close, trade_date }
+    for (const q of quotes) {
+        if (!latestQuotes.has(q.product_id))
+            latestQuotes.set(q.product_id, { close: +q.close, trade_date: q.trade_date });
+    }
+
+    // 4. Latest FX rates (last 14d, then pick latest per pair)
+    const sinceFx = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    const { data: fxRows, error: e4 } = await sb.from('fx_rates')
+        .select('from_currency, to_currency, rate, rate_date')
+        .gte('rate_date', sinceFx)
+        .order('rate_date', { ascending: false });
+    if (e4) throw e4;
+    const fxLatest = new Map();   // "FROM>TO" -> rate
+    for (const r of (fxRows || [])) {
+        const k = `${r.from_currency}>${r.to_currency}`;
+        if (!fxLatest.has(k)) fxLatest.set(k, +r.rate);
+    }
+
+    // 5. Last 2 daily_portfolio_stats rows for daily P&L
+    const { data: statsLast2 } = await sb.from('daily_portfolio_stats')
+        .select('stat_date, market_value, cash_balance, total_nav, net_flows, daily_pnl, daily_return')
+        .eq('portfolio_id', portfolioId)
+        .order('stat_date', { ascending: false })
+        .limit(2);
+
+    return { txns: txns || [], products, latestQuotes, fxLatest, statsLast2: statsLast2 || [] };
+}
+
+function fxRate(from, to) {
+    if (from === to) return 1;
+    const direct = viewData.fxLatest.get(`${from}>${to}`);
+    if (direct) return direct;
+    const inv = viewData.fxLatest.get(`${to}>${from}`);
+    if (inv) return 1 / inv;
+    return null;   // unknown — caller decides
+}
+
+// Replay transactions → per-(product, broker) positions
+function buildPositions(txns, products) {
+    const pmap = new Map(products.map(p => [p.id, p]));
+    const positions = new Map();   // "pid|bid" -> { qty, costLocal, ... }
+
+    for (const t of txns) {
+        const p = pmap.get(t.product_id);
+        if (!p) continue;
+        const k = `${t.product_id}|${t.account_id}`;
+        let pos = positions.get(k);
+        if (!pos) {
+            pos = {
+                product_id: t.product_id, account_id: t.account_id,
+                product: p,
+                qty: 0, costLocal: 0,
+            };
+            positions.set(k, pos);
+        }
+        const qty   = +t.quantity;
+        const price = +t.price_local || 0;
+        const comm  = +t.commission_local || 0;
+        const type  = t.transaction_type;
+        const isCash = p.asset_class === 'cash';
+        const sgn   = TXN_SIGN[type] ?? 0;
+
+        if (isCash) {
+            // Cash: face value tracks 1:1 with quantity in product ccy
+            pos.qty      += sgn * qty;
+            pos.costLocal += sgn * qty;
+        } else {
+            // Non-cash
+            switch (type) {
+                case 'buy':
+                    pos.qty       += qty;
+                    pos.costLocal += qty * price + comm;
+                    break;
+                case 'sell': {
+                    const avg = pos.qty > 0 ? pos.costLocal / pos.qty : 0;
+                    pos.qty       -= qty;
+                    pos.costLocal -= avg * qty;
+                    break;
+                }
+                case 'split':
+                    pos.qty += qty;   // extra shares; cost unchanged
+                    break;
+                // dividend/interest/fee/tax recorded on cash product, not stock
+            }
+        }
+    }
+    // Drop zeroed-out positions
+    return [...positions.values()].filter(p => Math.abs(p.qty) > 1e-9);
+}
+
+// Aggregate per-product (combine across brokers)
+function aggregateByProduct(positions) {
+    const byProduct = new Map();
+    for (const pos of positions) {
+        let agg = byProduct.get(pos.product_id);
+        if (!agg) {
+            agg = {
+                product_id: pos.product_id,
+                product: pos.product,
+                qty: 0, costLocal: 0,
+                accounts: [],
+            };
+            byProduct.set(pos.product_id, agg);
+        }
+        agg.qty       += pos.qty;
+        agg.costLocal += pos.costLocal;
+        const broker = userBrokers.find(b => b.id === pos.account_id);
+        agg.accounts.push({
+            account_id: pos.account_id,
+            broker_name: broker?.name || `acct ${pos.account_id}`,
+            qty: pos.qty,
+            costLocal: pos.costLocal,
+            avgCostLocal: pos.qty > 0 ? pos.costLocal / pos.qty : 0,
+        });
+    }
+    return [...byProduct.values()];
+}
+
+// ── External capital (sum of deposit−withdrawal in USD using current FX) ────
+function externalPrincipalUSD(txns, products) {
+    const pmap = new Map(products.map(p => [p.id, p]));
+    let total = 0;
+    for (const t of txns) {
+        if (t.transaction_type !== 'deposit' && t.transaction_type !== 'withdrawal') continue;
+        const p = pmap.get(t.product_id);
+        if (!p || p.asset_class !== 'cash') continue;
+        const fx = fxRate(p.base_currency, 'USD');
+        if (fx == null) continue;
+        const sgn = t.transaction_type === 'deposit' ? 1 : -1;
+        total += sgn * (+t.quantity) * fx;
+    }
+    return total;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  RENDERING
+// ─────────────────────────────────────────────────────────────────────────────
+
+function showOverviewLoading() {
+    document.getElementById('metrics-grid').innerHTML =
+        '<div class="metric"><div class="metric-label">Loading…</div></div>';
+    document.getElementById('holdings-body').innerHTML = '';
+    document.getElementById('overview-meta').textContent = '';
+    document.getElementById('holdings-meta').textContent = '';
+    hide('nav-broker-section');
+    hide('holdings-empty');
+}
+
+function renderEmpty() {
+    document.getElementById('metrics-grid').innerHTML =
+        '<div class="metric"><div class="metric-label">No portfolio</div></div>';
+    document.getElementById('holdings-body').innerHTML = '';
+    document.getElementById('overview-meta').textContent = '';
+    document.getElementById('holdings-meta').textContent = '';
+    show('holdings-empty');
+    hide('nav-broker-section');
+}
+
+function renderOverview() {
+    const positions  = buildPositions(viewData.txns, viewData.products);
+    const aggregated = aggregateByProduct(positions);
+
+    // Compute MV / cash / principal in USD using current FX
+    let mvUSD = 0, cashUSD = 0, holdingsPrincipalUSD = 0;
+    let missingPrice = 0, missingFx = 0;
+
+    for (const a of aggregated) {
+        const ccy = a.product.base_currency;
+        const fx  = fxRate(ccy, 'USD');
+        if (fx == null) { missingFx++; continue; }
+
+        if (a.product.asset_class === 'cash') {
+            cashUSD              += a.qty * fx;
+            holdingsPrincipalUSD += a.costLocal * fx;
+        } else {
+            const q = viewData.latestQuotes.get(a.product_id);
+            if (!q) { missingPrice++; continue; }
+            mvUSD                += a.qty * q.close * fx;
+            holdingsPrincipalUSD += a.costLocal * fx;
+        }
+    }
+    const navUSD = mvUSD + cashUSD;
+
+    // Total external principal
+    const externalUSD = externalPrincipalUSD(viewData.txns, viewData.products);
+
+    // Last day stats from daily_portfolio_stats (already in base ccy of portfolio)
+    const port      = portfolios.find(p => p.id === currentPortfolioId);
+    const baseCcy   = port?.base_currency || 'USD';
+    const latest    = viewData.statsLast2[0];
+    const navStats  = latest ? +latest.total_nav    : null;
+    const lastPnl   = latest ? +latest.daily_pnl    : null;
+    const lastRet   = latest ? +latest.daily_return : null;
+
+    // For HKD conversion of summary numbers
+    const usdToHkd = fxRate('USD', 'HKD');
+
+    // ── Build metric tiles ──
+    const totalPnl    = navUSD - externalUSD;
+    const totalPnlPct = externalUSD ? (totalPnl / externalUSD) : 0;
+    const cashToNav   = navUSD ? (cashUSD / navUSD) : 0;
+
+    const tiles = [
+        { label: 'NAV (USD)', value: '$' + fmt.money(navUSD),
+          sub: usdToHkd ? `≈ ${fmt.money(navUSD * usdToHkd)} HKD` : '' },
+        { label: 'Total Net Worth (HKD)',
+          value: usdToHkd ? '$' + fmt.money(navUSD * usdToHkd) : '—',
+          sub: usdToHkd ? `@${usdToHkd.toFixed(4)} USD/HKD` : 'no USD/HKD rate' },
+        { label: 'Total Principal (USD)', value: '$' + fmt.money(externalUSD),
+          sub: 'external deposits − withdrawals' },
+        { label: 'Total Principal (HKD)',
+          value: usdToHkd ? '$' + fmt.money(externalUSD * usdToHkd) : '—', sub: '' },
+        { label: 'Total P&L (USD)', value: withSign(totalPnl) + '$',
+          cls: sign(totalPnl) },
+        { label: 'Total P&L %', value: fmt.pctRaw(totalPnlPct * 100),
+          cls: sign(totalPnl) },
+        { label: `Last Day P&L (${baseCcy})`,
+          value: lastPnl == null ? '—' : withSign(lastPnl) + '$',
+          cls: lastPnl == null ? '' : sign(lastPnl),
+          sub: latest ? `as of ${latest.stat_date}` : '' },
+        { label: 'Last Day Return',
+          value: lastRet == null ? '—' : fmt.pctRaw(lastRet * 100),
+          cls: lastRet == null ? '' : sign(lastRet) },
+        { label: 'Market Value (USD)', value: '$' + fmt.money(mvUSD), sub: '' },
+        { label: 'Cash Balance (USD)', value: '$' + fmt.money(cashUSD), sub: '',
+          expandable: true, onClick: 'toggleCashBreakdown()' },
+        { label: 'Cash / NAV', value: navUSD ? fmt.pctRaw(cashToNav * 100) : '—', sub: '' },
+    ];
+
+    document.getElementById('metrics-grid').innerHTML = tiles.map(t => `
+        <div class="metric"${t.onClick ? ` onclick="${t.onClick}" style="cursor:pointer"` : ''}>
+            <div class="metric-label">${t.label}${t.expandable ? ' ▾' : ''}</div>
+            <div class="metric-value ${t.cls || ''}">${t.value}</div>
+            ${t.sub ? `<div class="metric-sub">${t.sub}</div>` : ''}
+        </div>`).join('');
+
+    // Cash breakdown panel (hidden until clicked)
+    const cashBreakdown = aggregated.filter(a => a.product.asset_class === 'cash');
+    if (cashBreakdown.length) {
+        const breakdownHTML = `
+            <div id="cash-breakdown" class="hidden" style="margin-top:14px;background:#0d1117;border:1px solid #21262d;border-radius:4px;padding:10px 14px">
+                <div style="color:#8b949e;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Cash Breakdown</div>
+                ${cashBreakdown.flatMap(a =>
+                    a.accounts.map(acct => {
+                        const ccy = a.product.base_currency;
+                        const fx  = fxRate(ccy, 'USD') ?? 1;
+                        return `<div class="item-row" style="border:none;padding:4px 0">
+                            <span class="item-name">${ccy} @ ${acct.broker_name}</span>
+                            <span class="item-meta">${fmt.money(acct.qty)} ${ccy}  ·  $${fmt.money(acct.qty * fx)} USD</span>
+                        </div>`;
+                    })
+                ).join('')}
+            </div>`;
+        const grid = document.getElementById('metrics-grid');
+        const existing = document.getElementById('cash-breakdown');
+        if (existing) existing.remove();
+        grid.insertAdjacentHTML('afterend', breakdownHTML);
+    }
+
+    // ── NAV by broker ──
+    const navByBroker = new Map();
+    for (const a of aggregated) {
+        const ccy = a.product.base_currency;
+        const fx  = fxRate(ccy, 'USD');
+        if (fx == null) continue;
+        for (const acct of a.accounts) {
+            const value = a.product.asset_class === 'cash'
+                ? acct.qty * fx
+                : (viewData.latestQuotes.get(a.product_id)?.close || 0) * acct.qty * fx;
+            navByBroker.set(acct.broker_name,
+                (navByBroker.get(acct.broker_name) || 0) + value);
+        }
+    }
+    if (navByBroker.size) {
+        const grid = document.getElementById('nav-broker-grid');
+        const total = [...navByBroker.values()].reduce((s, v) => s + v, 0);
+        grid.innerHTML = [...navByBroker.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, val]) => `
+                <div class="nav-broker">
+                    <div class="nav-broker-name">${name}</div>
+                    <div class="nav-broker-val">$${fmt.money(val)}</div>
+                    <div class="nav-broker-pct">${fmt.pctRaw(total ? (val/total)*100 : 0)} of total</div>
+                </div>`).join('');
+        show('nav-broker-section');
+    } else {
+        hide('nav-broker-section');
+    }
+
+    // Meta on overview header
+    let warns = [];
+    if (missingPrice) warns.push(`${missingPrice} ticker(s) without price`);
+    if (missingFx)    warns.push(`${missingFx} currency(ies) without FX`);
+    document.getElementById('overview-meta').textContent =
+        warns.length ? '⚠ ' + warns.join(' · ') : '';
+}
+
+function toggleCashBreakdown() {
+    const el = document.getElementById('cash-breakdown');
+    if (el) el.classList.toggle('hidden');
+}
+
+function renderHoldings() {
+    const positions  = buildPositions(viewData.txns, viewData.products);
+    const aggregated = aggregateByProduct(positions);
+
+    if (!aggregated.length) {
+        document.getElementById('holdings-body').innerHTML = '';
+        show('holdings-empty');
+        document.getElementById('holdings-meta').textContent = '';
+        return;
+    }
+    hide('holdings-empty');
+
+    // Pre-compute per-row valuation and totals
+    const rows = aggregated.map(a => {
+        const ccy = a.product.base_currency;
+        const fx  = fxRate(ccy, 'USD');
+        const isCash = a.product.asset_class === 'cash';
+        const mktPriceLocal = isCash ? 1
+            : (viewData.latestQuotes.get(a.product_id)?.close ?? null);
+        const avgCostLocal  = a.qty > 0 ? a.costLocal / a.qty : 0;
+        const mvUSD         = (mktPriceLocal != null && fx != null)
+            ? a.qty * mktPriceLocal * fx : null;
+        const principalUSD  = (fx != null) ? a.costLocal * fx : null;
+        const unrealizedUSD = (mvUSD != null && principalUSD != null)
+            ? mvUSD - principalUSD : null;
+        const unrealizedPct = (unrealizedUSD != null && Math.abs(principalUSD) > 1e-9)
+            ? unrealizedUSD / Math.abs(principalUSD) : null;
+        return {
+            agg: a, ccy, fx, isCash,
+            mktPriceLocal, avgCostLocal,
+            mvUSD, principalUSD, unrealizedUSD, unrealizedPct,
+        };
+    });
+
+    const totalMV       = rows.reduce((s, r) => s + (r.mvUSD || 0), 0);
+    const totalPrincipal = rows.reduce((s, r) => s + (r.principalUSD || 0), 0);
+
+    // Build HTML rows (row + sub-rows hidden by default)
+    let html = '';
+    let i = 0;
+    for (const r of rows) {
+        const a       = r.agg;
+        const isMulti = a.accounts.length > 1;
+        const acctText = isMulti ? `Multiple accounts (${a.accounts.length})`
+                                 : (a.accounts[0]?.broker_name || '—');
+        const pctPrincipal = totalPrincipal ? (r.principalUSD ?? 0) / totalPrincipal : 0;
+        const pctMV        = totalMV        ? (r.mvUSD        ?? 0) / totalMV        : 0;
+
+        const mvCell  = r.mvUSD        != null ? '$' + fmt.money(r.mvUSD)        : '—';
+        const prCell  = r.principalUSD != null ? '$' + fmt.money(r.principalUSD) : '—';
+        const pnlCell = r.unrealizedUSD != null
+            ? `<span class="${sign(r.unrealizedUSD)}">${withSign(r.unrealizedUSD)}</span>` : '—';
+        const pnlPctCell = r.unrealizedPct != null
+            ? `<span class="${sign(r.unrealizedPct)}">${fmt.pctRaw(r.unrealizedPct * 100)}</span>` : '—';
+        const mktPriceCell = r.mktPriceLocal != null ? fmt.price(r.mktPriceLocal) : '—';
+
+        const rowId = `row-${i}`;
+        html += `
+            <tr class="row" id="${rowId}" onclick="toggleRow('${rowId}')">
+                <td class="l"><span class="chevron">${isMulti ? '▶' : ' '}</span> <span class="ticker-cell">${a.product.ticker}</span></td>
+                <td class="l"><span class="class-pill ${a.product.asset_class}">${a.product.asset_class}</span></td>
+                <td>${r.ccy}</td>
+                <td>${fmt.qty(a.qty)}</td>
+                <td>${r.isCash ? '1.00' : fmt.price(r.avgCostLocal)}</td>
+                <td>${mktPriceCell}</td>
+                <td>${mvCell}</td>
+                <td>${prCell}</td>
+                <td>${pnlCell}</td>
+                <td>${pnlPctCell}</td>
+                <td>${fmt.pctRaw(pctPrincipal * 100)}</td>
+                <td>${fmt.pctRaw(pctMV * 100)}</td>
+                <td class="l">${acctText}</td>
+            </tr>
+        `;
+
+        if (isMulti) {
+            for (const acct of a.accounts) {
+                const acctMV = (r.mktPriceLocal != null && r.fx != null)
+                    ? acct.qty * r.mktPriceLocal * r.fx : null;
+                const acctPrin = (r.fx != null) ? acct.costLocal * r.fx : null;
+                const acctPnl  = (acctMV != null && acctPrin != null) ? acctMV - acctPrin : null;
+                html += `
+                    <tr class="sub hidden" data-parent="${rowId}">
+                        <td class="l">└ ${acct.broker_name}</td>
+                        <td></td>
+                        <td>${r.ccy}</td>
+                        <td>${fmt.qty(acct.qty)}</td>
+                        <td>${r.isCash ? '1.00' : fmt.price(acct.avgCostLocal)}</td>
+                        <td>${mktPriceCell}</td>
+                        <td>${acctMV  != null ? '$' + fmt.money(acctMV)  : '—'}</td>
+                        <td>${acctPrin != null ? '$' + fmt.money(acctPrin) : '—'}</td>
+                        <td>${acctPnl != null ? `<span class="${sign(acctPnl)}">${withSign(acctPnl)}</span>` : '—'}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td class="l">${acct.broker_name}</td>
+                    </tr>
+                `;
+            }
+        }
+        i++;
+    }
+
+    // Totals row
+    html += `
+        <tr class="totals">
+            <td class="l" colspan="6">TOTAL</td>
+            <td>$${fmt.money(totalMV)}</td>
+            <td>$${fmt.money(totalPrincipal)}</td>
+            <td><span class="${sign(totalMV - totalPrincipal)}">${withSign(totalMV - totalPrincipal)}</span></td>
+            <td>${totalPrincipal ? `<span class="${sign(totalMV - totalPrincipal)}">${fmt.pctRaw(((totalMV - totalPrincipal)/totalPrincipal)*100)}</span>` : '—'}</td>
+            <td>100%</td>
+            <td>100%</td>
+            <td></td>
+        </tr>`;
+
+    document.getElementById('holdings-body').innerHTML = html;
+    document.getElementById('holdings-meta').textContent =
+        `${aggregated.length} position(s)`;
+}
+
+function toggleRow(rowId) {
+    const main = document.getElementById(rowId);
+    if (!main) return;
+    const subs = document.querySelectorAll(`tr.sub[data-parent="${rowId}"]`);
+    if (!subs.length) return;
+    const expanded = main.classList.toggle('expanded');
+    subs.forEach(s => s.classList.toggle('hidden', !expanded));
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Add Portfolio
+// ═════════════════════════════════════════════════════════════════════════════
 async function addPortfolio() {
     const name           = document.getElementById('p-name').value.trim();
     const currency       = document.getElementById('p-currency').value;
@@ -568,7 +1272,6 @@ async function addPortfolio() {
     if (!initialDeposit || initialDeposit <= 0) {
         showMsg('portfolio-msg', 'Initial deposit amount is required.', 'error'); return;
     }
-
     const cashId = cashProducts[currency];
     if (!cashId) { showMsg('portfolio-msg', `No cash product for ${currency}.`, 'error'); return; }
 
@@ -593,15 +1296,15 @@ async function addPortfolio() {
     ['p-name','p-start-date','p-initial-deposit'].forEach(id =>
         document.getElementById(id).value = '');
     await loadPortfolios();
+    currentPortfolioId = pData.id;
+    document.getElementById('active-portfolio').value = String(pData.id);
+    await loadAndRender();
     clearMsgAfter('portfolio-msg');
 }
 
-// ── Recalculate portfolio stats ───────────────────────────────────────────────
-// The actual computation runs in Python via GitHub Actions:
-//   .github/workflows/recalc_portfolio.yml  (workflow_dispatch)
-// We trigger it with the user's fine-grained PAT (Actions: read+write scope on
-// this single repo). The PAT is stored in localStorage on this device only.
-
+// ═════════════════════════════════════════════════════════════════════════════
+//  Recalc current portfolio (workflow_dispatch)
+// ═════════════════════════════════════════════════════════════════════════════
 const GH_OWNER     = 'AndyGE44';
 const GH_REPO      = 'Portfolio_Mangement';
 const GH_WORKFLOW  = 'recalc_portfolio.yml';
@@ -621,13 +1324,18 @@ function getGhPat() {
     return pat.trim();
 }
 
-async function recalcStats(portfolioId, portfolioName) {
+async function recalcCurrent() {
+    if (!currentPortfolioId) {
+        showMsg('stats-msg', 'No portfolio selected.', 'error'); return;
+    }
+    const port = portfolios.find(p => p.id === currentPortfolioId);
+    const portName = port?.name || `#${currentPortfolioId}`;
     const pat = getGhPat();
     if (!pat) { showMsg('stats-msg', 'PAT required to trigger recalc.', 'error'); return; }
 
-    const btn = event.target;
+    const btn = document.getElementById('btn-recalc-cur');
     btn.disabled = true;
-    showMsg('stats-msg', `Triggering full recalc for "${portfolioName}"…`);
+    showMsg('stats-msg', `Triggering full recalc for "${portName}"…`, 'info');
 
     const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`;
     let resp;
@@ -641,22 +1349,18 @@ async function recalcStats(portfolioId, portfolioName) {
             },
             body: JSON.stringify({
                 ref: GH_BRANCH,
-                inputs: { portfolio_id: String(portfolioId), mode: 'full' },
+                inputs: { portfolio_id: String(currentPortfolioId), mode: 'full' },
             }),
         });
     } catch (e) {
         btn.disabled = false;
-        showMsg('stats-msg', `Network error: ${e.message}`, 'error');
-        return;
+        showMsg('stats-msg', `Network error: ${e.message}`, 'error'); return;
     }
-
     btn.disabled = false;
 
     if (resp.status === 401 || resp.status === 403) {
         localStorage.removeItem('gh_pat');
-        showMsg('stats-msg',
-            'GitHub rejected the PAT (cleared). Click Recalc again to re-enter.',
-            'error');
+        showMsg('stats-msg', 'GitHub rejected the PAT (cleared). Click Recalc again to re-enter.', 'error');
         return;
     }
     if (!resp.ok) {
@@ -665,13 +1369,15 @@ async function recalcStats(portfolioId, portfolioName) {
         return;
     }
     showMsg('stats-msg',
-        `Recalc queued for "${portfolioName}". Track progress: ` +
-        `<a href="${GH_RUNS_URL}" target="_blank" rel="noopener">Actions →</a>`,
+        `Recalc queued for "${portName}". Track progress: ` +
+        `<a href="${GH_RUNS_URL}" target="_blank" rel="noopener" style="color:#58a6ff">Actions →</a>`,
         'success');
     clearMsgAfter('stats-msg', 8000);
 }
 
-// ── Add broker account ────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  Add Broker
+// ═════════════════════════════════════════════════════════════════════════════
 async function addBroker() {
     const broker_id    = parseInt(document.getElementById('b-institution').value);
     const name         = document.getElementById('b-name').value.trim();
@@ -686,7 +1392,9 @@ async function addBroker() {
     clearMsgAfter('broker-msg');
 }
 
-// ── Deposit / Withdraw Cash ───────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  Cash deposit / withdrawal
+// ═════════════════════════════════════════════════════════════════════════════
 async function submitCash(type) {
     const portfolioId = parseInt(document.getElementById('cw-portfolio').value);
     const brokerId    = parseInt(document.getElementById('cw-broker').value);
@@ -716,16 +1424,18 @@ async function submitCash(type) {
     if (error) { showMsg('cash-msg', error.message, 'error'); return; }
 
     const label = type === 'deposit' ? 'Deposit' : 'Withdrawal';
-    showMsg('cash-msg', `${label} of ${amount} ${ccy} recorded`, 'success');
-    document.getElementById('cw-amount').value = '';
-    document.getElementById('cw-notes').value  = '';
+    showMsg('cash-msg', `${label} recorded: ${amount} ${ccy}`, 'success');
+    ['cw-amount','cw-notes'].forEach(id => document.getElementById(id).value = '');
+    if (portfolioId === currentPortfolioId) await loadAndRender();
     clearMsgAfter('cash-msg');
 }
 
-// ── FX Exchange ───────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  FX exchange (cash legs as buy/sell on cash products)
+// ═════════════════════════════════════════════════════════════════════════════
 function computeFx() {
     const fromAmt = parseFloat(document.getElementById('fx-from-amt').value) || 0;
-    const rate    = parseFloat(document.getElementById('fx-rate').value)     || 0;
+    const rate    = parseFloat(document.getElementById('fx-rate').value)    || 0;
     const fromCcy = document.getElementById('fx-from-ccy').value;
     const toCcy   = document.getElementById('fx-to-ccy').value;
     if (fromAmt > 0 && rate > 0) {
@@ -733,9 +1443,6 @@ function computeFx() {
         document.getElementById('fx-to-amt').value = toAmt.toFixed(4);
         document.getElementById('fx-info').textContent =
             `Sell ${fromAmt} ${fromCcy} @ ${rate} → Receive ${toAmt.toFixed(4)} ${toCcy}`;
-    } else {
-        document.getElementById('fx-to-amt').value = '';
-        document.getElementById('fx-info').textContent = '';
     }
 }
 
@@ -785,7 +1492,6 @@ async function submitFx() {
         executed_at: new Date(dateVal).toISOString(),
         commission_local: 0, notes: fxNote,
     };
-
     // FX = internal currency swap. Both legs are buy/sell on cash products
     // (NOT deposit/withdrawal — those are reserved for external flows only).
     const { error } = await sb.from('transactions').insert([
@@ -802,10 +1508,13 @@ async function submitFx() {
     ['fx-from-amt','fx-rate','fx-to-amt','fx-notes'].forEach(id =>
         document.getElementById(id).value = '');
     document.getElementById('fx-info').textContent = '';
+    if (portfolioId === currentPortfolioId) await loadAndRender();
     clearMsgAfter('fx-msg');
 }
 
-// ── Ticker search (active products only) ─────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  Add Transaction (buy/sell/dividend/split)
+// ═════════════════════════════════════════════════════════════════════════════
 function onTickerInput() {
     clearTimeout(tickerTimer);
     const q = document.getElementById('t-ticker').value.trim();
@@ -847,7 +1556,6 @@ document.addEventListener('click', e => {
     if (!e.target.closest('.ticker-wrap')) hide('ticker-dd');
 });
 
-// ── Transaction type UI ───────────────────────────────────────────────────────
 function onTypeChange() {
     const type       = document.getElementById('t-type').value;
     const isBuySell  = type === 'buy' || type === 'sell';
@@ -881,13 +1589,12 @@ function updateBuySellHint() {
     const gross      = qty * price;
     const net        = type === 'buy' ? gross + commission : gross - commission;
     const ccy        = pickedProduct?.base_currency || '';
-    const action     = type === 'buy' ? 'Cash withdrawal' : 'Cash deposit';
+    const action     = type === 'buy' ? 'Cash sold' : 'Cash bought';
     document.getElementById('buysell-hint').textContent = gross > 0
         ? `${action}: ${net.toFixed(2)} ${ccy}  (${gross.toFixed(2)} ${type === 'buy' ? '+' : '−'} ${commission.toFixed(2)} commission)`
         : '';
 }
 
-// ── Split compute ─────────────────────────────────────────────────────────────
 async function computeSplit() {
     const infoEl = document.getElementById('split-info');
     if (!pickedProduct) { infoEl.textContent = 'Select a ticker first'; return; }
@@ -912,7 +1619,6 @@ async function computeSplit() {
         : 'No current holding found for this portfolio / broker';
 }
 
-// ── Submit transaction ────────────────────────────────────────────────────────
 async function submitTxn() {
     const type        = document.getElementById('t-type').value;
     const portfolioId = parseInt(document.getElementById('t-portfolio').value);
@@ -931,7 +1637,6 @@ async function submitTxn() {
         executed_at: new Date(dateVal).toISOString(),
         notes, commission_local: 0,
     };
-
     let rows = [];
 
     if (type === 'buy' || type === 'sell') {
@@ -984,6 +1689,7 @@ async function submitTxn() {
     const extra  = rows.length > 1 ? ' (+ cash leg auto-recorded)' : '';
     showMsg('txn-msg', `${labels[type]} recorded${extra}`, 'success');
     resetTxnForm();
+    if (portfolioId === currentPortfolioId) await loadAndRender();
     clearMsgAfter('txn-msg', 4000);
 }
 
@@ -997,7 +1703,9 @@ function resetTxnForm() {
     document.getElementById('buysell-hint').textContent = '';
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+//  UI helpers
+// ═════════════════════════════════════════════════════════════════════════════
 function txnDateOk(portfolioId, dateVal, msgId) {
     const p = portfolios.find(x => x.id === portfolioId);
     if (p?.start_date && dateVal < p.start_date) {
@@ -1005,6 +1713,13 @@ function txnDateOk(portfolioId, dateVal, msgId) {
         return false;
     }
     return true;
+}
+
+function togglePanel(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('hidden');
+    if (!el.classList.contains('hidden')) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function show(id)  { document.getElementById(id).classList.remove('hidden'); }
@@ -1017,7 +1732,7 @@ function showMsg(id, msg, type = 'error') {
 }
 function clearMsgAfter(id, ms = 3000) { setTimeout(() => showMsg(id, ''), ms); }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────────────────────
 boot();
 </script>
 </body>
