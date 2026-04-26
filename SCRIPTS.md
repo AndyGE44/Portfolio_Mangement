@@ -1,7 +1,7 @@
 # Scripts Reference
 
-Python scripts for managing market data and the product catalogue.  
-All scripts share `config.py` (root) for database connectivity.
+Python scripts for managing market data, products, FX, and portfolio statistics.  
+All scripts share `config.py` (root) for database connectivity and run against the same Supabase Postgres database.
 
 ---
 
@@ -11,10 +11,15 @@ All scripts share `config.py` (root) for database connectivity.
 2. [config.py — Shared Configuration](#configpy--shared-configuration)
 3. [01_sync_products.py — S&P 500 Bootstrap](#01_sync_productspy--sp-500-bootstrap)
 4. [02_sync_prices/02_yfbatch_sync_price.py — Daily Price Sync](#02_sync_prices02_yfbatch_sync_pricepy--daily-price-sync)
-5. [03_add_product.py — Add Single Product](#03_add_productpy--add-single-product)
-6. [04_delete_product.py — Delete / Deactivate Product](#04_delete_productpy--delete--deactivate-product)
-7. [05_add_products_batch.py — Batch Add from CSV](#05_add_products_batchpy--batch-add-from-csv)
-8. [06_add_fx_rate.py — Add USD ↔ HKD FX Rates](#06_add_fx_ratepy--add-usd--hkd-fx-rates)
+5. [02_sync_prices/02b_resync_history.py — One-off Historical Re-sync](#02_sync_prices02b_resync_historypy--one-off-historical-re-sync)
+6. [03_add_product.py — Add Single Product](#03_add_productpy--add-single-product)
+7. [04_delete_product.py — Delete / Deactivate Product](#04_delete_productpy--delete--deactivate-product)
+8. [05_add_products_batch.py — Batch Add from CSV](#05_add_products_batchpy--batch-add-from-csv)
+9. [06_add_fx_rate.py — Add USD ↔ HKD FX Rates](#06_add_fx_ratepy--add-usd--hkd-fx-rates)
+10. [07_rebuild_portfolio_stats.py — Daily NAV / P&L (Canonical)](#07_rebuild_portfolio_statspy--daily-nav--pl-canonical)
+11. [Shared: Vendor IDs](#shared-vendor-ids)
+12. [Shared: backfill() function](#shared-backfill-function)
+13. [Shared: Cash-leg / FX-leg conventions](#shared-cash-leg--fx-leg-conventions)
 
 ---
 
@@ -122,8 +127,10 @@ python 02_yfbatch_sync_price.py
 1. **Resolve vendor** — queries `vendors` for the `yahoo_finance` row and gets its `id`.
 2. **Fetch active products** — joins `products` and `vendor_mappings` to get every active
    stock product along with its `yahoo_finance` vendor ticker.
-3. **Bulk download** — calls `yf.download(tickers_list, ...)` once for all tickers using
-   `threads=True`. This is significantly faster than one request per ticker.
+3. **Bulk download** — calls `yf.download(tickers_list, auto_adjust=True, threads=True, ...)`
+   once for all tickers. `auto_adjust=True` returns split- and dividend-adjusted prices, so
+   replaying transactions with the post-split share count never produces a phantom NAV
+   jump on split dates. This is significantly faster than one request per ticker.
 4. **Stack and filter** — unstacks the multi-index DataFrame with `.stack(level="Ticker")`,
    then skips rows where `Open` or `Close` is NaN (halted stocks) and skips today's data
    if the script runs before the EOD cutoff.
@@ -144,6 +151,56 @@ stored as a final EOD price.
 
 On conflict, `open`, `high`, `low`, `close`, `volume` are all overwritten.
 This allows the daily cron to self-correct if a partial bar was written earlier.
+
+---
+
+## 02_sync_prices/02b_resync_history.py — One-off Historical Re-sync
+
+**Purpose:** Re-pulls quote history with `auto_adjust=True` after the codebase switched away
+from raw prices. Use this once when migrating from un-adjusted prices, or any time you need
+to reset a date range to clean adjusted data.
+
+**Usage:**
+
+```bash
+# Resync ALL active stock products from 2010 onward
+python 02_sync_prices/02b_resync_history.py --start 2010-01-01 --end 2026-04-26
+
+# Limit to a single ticker (or a comma-separated list)
+python 02_sync_prices/02b_resync_history.py --start 2020-01-01 --end 2026-04-26 \
+       --tickers AAPL,MSFT,NVDA
+
+# Limit by asset class
+python 02_sync_prices/02b_resync_history.py --start 2020-01-01 --end 2026-04-26 \
+       --asset-class etf
+
+# Preview deletes + downloads without writing
+python 02_sync_prices/02b_resync_history.py --start 2010-01-01 --end 2026-04-26 --dry-run
+```
+
+### Arguments
+
+| Argument | Required | Description |
+|---|---|---|
+| `--start YYYY-MM-DD` | Yes | Range start (inclusive) |
+| `--end YYYY-MM-DD` | Yes | Range end (inclusive) |
+| `--asset-class CLASS` | No | Limit to products of this `asset_class` (e.g. `stock`, `etf`) |
+| `--tickers A,B,C` | No | Comma-separated display tickers to limit to |
+| `--batch-size N` | No (default 50) | Tickers per `yf.download` call |
+| `--dry-run` | No | Show row counts without modifying the DB |
+
+### How it works
+
+1. **Resolve targets** — joins `products` + `vendor_mappings` for vendor `yahoo_finance`,
+   filters by `is_active = TRUE` and excludes `asset_class = 'cash'`.
+2. **Delete pass** — removes existing rows in `quotes` for those products in the date range
+   under `vendor_id = 3` and `source_type = 'eod'`. Idempotent.
+3. **Download + insert pass** — batches tickers (default 50 per call), calls
+   `yf.download(..., auto_adjust=True)`, stacks the multi-index DataFrame, drops NaN rows,
+   chunks at 5 000 rows per `INSERT … ON CONFLICT DO UPDATE` statement.
+4. **Sleep `BATCH_DELAY` (0.5 s)** between batches to be polite to Yahoo's servers.
+
+> ⚠️ This wipes the date range first. Run with `--dry-run` once if unsure of scope.
 
 ---
 
@@ -486,6 +543,103 @@ were already fetched or manually entered.
 
 ---
 
+## 07_rebuild_portfolio_stats.py — Daily NAV / P&L (Canonical)
+
+**Purpose:** Rebuilds the `daily_portfolio_stats` table from `transactions` + `quotes` +
+`fx_rates`. This is the **canonical** implementation — the previous PL/pgSQL functions
+(`rebuild_portfolio_stats`, `rebuild_all_portfolio_stats`) have been dropped.
+
+Used by:
+- The **daily cron** (step 7 of `daily_sync.yml`) — `--date today`
+- The **on-demand recalc workflow** (`recalc_portfolio.yml`, triggered from the web
+  "↻ Recalc" button) — `--portfolio <id> --full`
+
+**Usage:**
+
+```bash
+# Single day for all portfolios (cron mode)
+python 07_rebuild_portfolio_stats.py --date 2026-04-26
+
+# All portfolios, today
+python 07_rebuild_portfolio_stats.py
+
+# Date range
+python 07_rebuild_portfolio_stats.py --from 2025-10-31 --to 2026-04-26
+
+# Full rebuild from a portfolio's start_date through today
+python 07_rebuild_portfolio_stats.py --portfolio 2 --full
+
+# Preview without writing
+python 07_rebuild_portfolio_stats.py --portfolio 2 --full --dry-run
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `--portfolio N` | Limit to portfolio id `N`. Default: all portfolios. |
+| `--date YYYY-MM-DD` | Single date (default: today). |
+| `--from YYYY-MM-DD` | Range start (inclusive). |
+| `--to YYYY-MM-DD` | Range end (inclusive; default: today). |
+| `--full` | Each portfolio: from its `start_date` through today. |
+| `--dry-run` | Print results table; no DB writes. |
+
+### Daily formulas (per portfolio, per day, in base ccy)
+
+```
+market_value(d) = Σ over non-cash positions of  qty × close(d) × fx_at(d)
+cash_balance(d) = Σ over cash positions     of  qty × fx_at(d)
+total_nav(d)    = market_value + cash_balance       (generated column)
+net_flows(d)    = Σ external-flow signed qty × fx_at(d)   on day d only
+                  (external = transaction_type IN ('deposit','withdrawal'))
+daily_pnl(d)    = total_nav(d) − total_nav(d−1) − net_flows(d)
+daily_return(d) = daily_pnl / (total_nav(d−1) + net_flows(d))
+                  -- start-of-day-flow convention; 0 if denominator is 0
+```
+
+`txn_qty_delta` is inlined as a `CASE` expression in the SQL replay query — the script does
+NOT depend on the Postgres function (so it survives if the function is ever renamed).
+
+### Performance design (single-connection / bulk-fetch)
+
+The script opens **one** DB connection per run and pre-fetches everything:
+
+| Round-trip | What |
+|---|---|
+| 1 | List of portfolios (or one row if `--portfolio` set) |
+| 2 | All transactions for the portfolio (sorted) |
+| 3 | All FX-rate history for relevant currencies |
+| 4 | All quote history for held stock products (vendor 3) |
+| 5 | Seed `prev_nav` from the last existing stat row before `from_date` |
+| 6 | One multi-row `INSERT … ON CONFLICT DO UPDATE` (chunked at 1000 rows) |
+
+The per-day loop is then pure Python with bisect lookups (`Series.at(d)`). No per-day SQL.
+Reads + writes wrap in a single `engine.begin()` so the whole run is one transaction.
+
+### Conventions assumed
+
+- `deposit` / `withdrawal` are **external-only** (not used for cash legs of trades).
+- Cash legs of stock buy/sell and FX legs are stored as `buy` / `sell` on the cash product.
+- Quotes use `auto_adjust=True` (split-adjusted) so split-day NAV is invariant.
+
+If your DB does not yet follow these conventions, run the migration in
+`backfill_cash_leg_typing` first (see git history) and re-pull quotes via
+`02b_resync_history.py`.
+
+### Triggering from the web
+
+`docs/portfolio.html` calls GitHub's REST API:
+
+```js
+POST /repos/{owner}/{repo}/actions/workflows/recalc_portfolio.yml/dispatches
+Body: { ref: 'main', inputs: { portfolio_id: '<id>', mode: 'full' } }
+Auth: fine-grained PAT with "Actions: Read and write" on this repo
+```
+
+The PAT is stored in the user's browser `localStorage`; nothing server-side proxies it.
+
+---
+
 ## Shared: Vendor IDs
 
 | ID | Name | Used by |
@@ -518,4 +672,30 @@ backfill(engine, product_id, vendor_ticker, start)
 
 Rows with `NaN` open or close are silently dropped.  
 Inserts using `source_type='eod'` and `vendor_id=3` (`yahoo_finance`), matching the daily sync.  
-Chunk size is 2 000 rows per `INSERT` statement.
+Chunk size is 2 000 rows per `INSERT` statement.  
+Calls `yf.download(..., auto_adjust=True)` so the backfilled history is split-adjusted.
+
+---
+
+## Shared: Cash-leg / FX-leg conventions
+
+Important convention shared across `06_add_fx_rate.py`, the web frontend, and
+`07_rebuild_portfolio_stats.py`:
+
+| Event | Stored as |
+|---|---|
+| External cash deposit / withdrawal | `deposit` / `withdrawal` on cash product |
+| Cash leg of a stock **buy** | `sell` on cash product (cash decreased) |
+| Cash leg of a stock **sell** | `buy` on cash product (cash increased) |
+| FX swap (sell ccy A, buy ccy B) | `sell` on cash product A + `buy` on cash product B |
+| Dividend / interest received | `dividend` / `interest` on cash product |
+| Fee / tax paid | `fee` / `tax` on cash product |
+| Stock split | `split` on the stock (quantity = *extra* shares only) |
+
+Why: this lets `07_rebuild_portfolio_stats.py` compute external `net_flows` simply with
+`WHERE transaction_type IN ('deposit','withdrawal')` — internal cash movements never get
+double-counted as external flows.
+
+The web frontend (`docs/portfolio.html`) auto-creates the cash leg with the correct type
+when the user submits a buy/sell/FX through the form. If you insert raw rows via SQL or
+another script, follow the same convention.
