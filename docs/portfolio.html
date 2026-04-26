@@ -1278,10 +1278,14 @@ function renderHoldings() {
 
         if (isMulti) {
             for (const acct of a.accounts) {
-                const acctMV = (r.mktPriceLocal != null && r.fx != null)
+                const acctMV   = (r.mktPriceLocal != null && r.fx != null)
                     ? acct.qty * r.mktPriceLocal * r.fx : null;
-                const acctPrin = acct.costUSD;       // LOCKED, per-account share of cost basis
+                const acctPrin = acct.costUSD;       // LOCKED per-account share of cost basis
                 const acctPnl  = (acctMV != null) ? acctMV - acctPrin : null;
+                const acctPnlPct = (acctPnl != null && Math.abs(acctPrin) > 1e-9)
+                    ? acctPnl / Math.abs(acctPrin) : null;
+                const acctPctPrin = totalPrincipal ? acctPrin / totalPrincipal : 0;
+                const acctPctMV   = totalMV        ? (acctMV ?? 0) / totalMV   : 0;
                 html += `
                     <tr class="sub hidden" data-parent="${rowId}">
                         <td class="l">└ ${acct.broker_name}</td>
@@ -1290,12 +1294,12 @@ function renderHoldings() {
                         <td>${fmt.qty(acct.qty)}</td>
                         <td>${r.isCash ? '1.00' : fmt.price(acct.avgCostLocal)}</td>
                         <td>${mktPriceCell}</td>
-                        <td>${acctMV  != null ? '$' + fmt.money(acctMV)  : '—'}</td>
+                        <td>${acctMV   != null ? '$' + fmt.money(acctMV)   : '—'}</td>
                         <td>${acctPrin != null ? '$' + fmt.money(acctPrin) : '—'}</td>
-                        <td>${acctPnl != null ? `<span class="${sign(acctPnl)}">${withSign(acctPnl)}</span>` : '—'}</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
+                        <td>${acctPnl  != null ? `<span class="${sign(acctPnl)}">${withSign(acctPnl)}</span>` : '—'}</td>
+                        <td>${acctPnlPct != null ? `<span class="${sign(acctPnlPct)}">${fmt.pctRaw(acctPnlPct * 100)}</span>` : '—'}</td>
+                        <td>${fmt.pctRaw(acctPctPrin * 100)}</td>
+                        <td>${fmt.pctRaw(acctPctMV   * 100)}</td>
                         <td class="l">${acct.broker_name}</td>
                     </tr>
                 `;
