@@ -830,17 +830,17 @@ async function fetchViewData(portfolioId) {
             latestQuotes.set(q.product_id, { close: +q.close, trade_date: q.trade_date });
     }
 
-    // 4. Latest FX rates (last 14d, then pick latest per pair)
-    const sinceFx = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    // 4. FX rate FULL history (needed to lock cost basis at transaction date).
+    //    Pulled in one go and indexed below; ~3-4k rows total.
     const { data: fxRows, error: e4 } = await sb.from('fx_rates')
         .select('from_currency, to_currency, rate, rate_date')
-        .gte('rate_date', sinceFx)
-        .order('rate_date', { ascending: false });
+        .order('from_currency, to_currency, rate_date');
     if (e4) throw e4;
-    const fxLatest = new Map();   // "FROM>TO" -> rate
+    const fxSeries = new Map();   // "FROM>TO" -> [{ date, rate }, ...] sorted asc
     for (const r of (fxRows || [])) {
         const k = `${r.from_currency}>${r.to_currency}`;
-        if (!fxLatest.has(k)) fxLatest.set(k, +r.rate);
+        if (!fxSeries.has(k)) fxSeries.set(k, []);
+        fxSeries.get(k).push({ date: r.rate_date, rate: +r.rate });
     }
 
     // 5. Last 2 daily_portfolio_stats rows for daily P&L
@@ -850,22 +850,57 @@ async function fetchViewData(portfolioId) {
         .order('stat_date', { ascending: false })
         .limit(2);
 
-    return { txns: txns || [], products, latestQuotes, fxLatest, statsLast2: statsLast2 || [] };
+    return { txns: txns || [], products, latestQuotes, fxSeries, statsLast2: statsLast2 || [] };
 }
 
-function fxRate(from, to) {
+// ─── FX helpers ──────────────────────────────────────────────────────────────
+// fxRateAt: latest rate on or before `date` (YYYY-MM-DD string).
+//   Falls back to the earliest available rate if `date` predates the series
+//   (best-effort; the user may need to add older fx_rates manually).
+function fxRateAt(from, to, date) {
     if (from === to) return 1;
-    const direct = viewData.fxLatest.get(`${from}>${to}`);
-    if (direct) return direct;
-    const inv = viewData.fxLatest.get(`${to}>${from}`);
-    if (inv) return 1 / inv;
-    return null;   // unknown — caller decides
+    const direct = viewData.fxSeries.get(`${from}>${to}`);
+    if (direct && direct.length) {
+        const r = bisectLeq(direct, date);
+        if (r) return r.rate;
+    }
+    const inv = viewData.fxSeries.get(`${to}>${from}`);
+    if (inv && inv.length) {
+        const r = bisectLeq(inv, date);
+        if (r) return 1 / r.rate;
+    }
+    return null;
 }
 
-// Replay transactions → per-(product, broker) positions
+// Latest FX (used for current market value)
+function fxRateLatest(from, to) {
+    if (from === to) return 1;
+    const direct = viewData.fxSeries.get(`${from}>${to}`);
+    if (direct && direct.length) return direct[direct.length - 1].rate;
+    const inv = viewData.fxSeries.get(`${to}>${from}`);
+    if (inv && inv.length) return 1 / inv[inv.length - 1].rate;
+    return null;
+}
+
+// Binary search: largest item with item.date <= target. Falls back to first.
+function bisectLeq(list, target) {
+    let lo = 0, hi = list.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (list[mid].date <= target) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo > 0 ? list[lo - 1] : list[0];
+}
+
+// Replay transactions → per-(product, broker) positions.
+//   `costLocal` is the cost basis in the product's own currency (for "Avg Cost" display).
+//   `costUSD`   is the cost basis in USD, with each contribution converted at the
+//   FX rate **on the transaction date**. This is what makes FX P&L visible later
+//   (mvUSD uses today's FX; costUSD is locked → diff captures FX move).
 function buildPositions(txns, products) {
     const pmap = new Map(products.map(p => [p.id, p]));
-    const positions = new Map();   // "pid|bid" -> { qty, costLocal, ... }
+    const positions = new Map();   // "pid|bid" -> { qty, costLocal, costUSD, ... }
 
     for (const t of txns) {
         const p = pmap.get(t.product_id);
@@ -876,46 +911,68 @@ function buildPositions(txns, products) {
             pos = {
                 product_id: t.product_id, account_id: t.account_id,
                 product: p,
-                qty: 0, costLocal: 0,
+                qty: 0, costLocal: 0, costUSD: 0,
             };
             positions.set(k, pos);
         }
-        const qty   = +t.quantity;
-        const price = +t.price_local || 0;
-        const comm  = +t.commission_local || 0;
-        const type  = t.transaction_type;
-        const isCash = p.asset_class === 'cash';
-        const sgn   = TXN_SIGN[type] ?? 0;
+        const qty     = +t.quantity;
+        const price   = +t.price_local || 0;
+        const comm    = +t.commission_local || 0;
+        const type    = t.transaction_type;
+        const isCash  = p.asset_class === 'cash';
+        const sgn     = TXN_SIGN[type] ?? 0;
+        const txnDate = (t.executed_at || '').slice(0, 10);
+        const fxAtTxn = fxRateAt(p.base_currency, 'USD', txnDate) ?? 1;
 
         if (isCash) {
-            // Cash: face value tracks 1:1 with quantity in product ccy
-            pos.qty      += sgn * qty;
-            pos.costLocal += sgn * qty;
+            // Cash: face value moves 1:1 with qty in local ccy.
+            //   USD cost basis is locked at the FX rate when the cash entered.
+            const deltaQty = sgn * qty;
+            if (deltaQty >= 0 || pos.qty <= 0) {
+                pos.qty       += deltaQty;
+                pos.costLocal += deltaQty;
+                pos.costUSD   += deltaQty * fxAtTxn;
+            } else {
+                // Outflow from existing cash → consume at weighted-avg USD cost
+                const removed  = -deltaQty;
+                const avgUSD   = pos.costUSD / pos.qty;
+                pos.qty       -= removed;
+                pos.costLocal -= removed;            // local face value: 1:1
+                pos.costUSD   -= avgUSD * removed;
+            }
         } else {
-            // Non-cash
             switch (type) {
-                case 'buy':
+                case 'buy': {
+                    const cashAdded = qty * price + comm;     // in local ccy
                     pos.qty       += qty;
-                    pos.costLocal += qty * price + comm;
+                    pos.costLocal += cashAdded;
+                    pos.costUSD   += cashAdded * fxAtTxn;     // lock USD cost
                     break;
+                }
                 case 'sell': {
-                    const avg = pos.qty > 0 ? pos.costLocal / pos.qty : 0;
-                    pos.qty       -= qty;
-                    pos.costLocal -= avg * qty;
+                    if (pos.qty > 0) {
+                        const avgLocal = pos.costLocal / pos.qty;
+                        const avgUSD   = pos.costUSD   / pos.qty;
+                        pos.qty       -= qty;
+                        pos.costLocal -= avgLocal * qty;
+                        pos.costUSD   -= avgUSD   * qty;
+                    }
                     break;
                 }
                 case 'split':
-                    pos.qty += qty;   // extra shares; cost unchanged
+                    // Extra shares; cost basis (local & USD) unchanged.
+                    pos.qty += qty;
                     break;
-                // dividend/interest/fee/tax recorded on cash product, not stock
+                // dividend/interest/fee/tax recorded on cash product, not on stock
             }
         }
     }
-    // Drop zeroed-out positions
     return [...positions.values()].filter(p => Math.abs(p.qty) > 1e-9);
 }
 
-// Aggregate per-product (combine across brokers)
+// Aggregate per-product (combine across brokers). Carries both costLocal and
+// costUSD so we can show local Avg Cost AND a USD principal that's locked at
+// each transaction's FX rate.
 function aggregateByProduct(positions) {
     const byProduct = new Map();
     for (const pos of positions) {
@@ -924,26 +981,32 @@ function aggregateByProduct(positions) {
             agg = {
                 product_id: pos.product_id,
                 product: pos.product,
-                qty: 0, costLocal: 0,
+                qty: 0, costLocal: 0, costUSD: 0,
                 accounts: [],
             };
             byProduct.set(pos.product_id, agg);
         }
         agg.qty       += pos.qty;
         agg.costLocal += pos.costLocal;
+        agg.costUSD   += pos.costUSD;
         const broker = userBrokers.find(b => b.id === pos.account_id);
         agg.accounts.push({
             account_id: pos.account_id,
             broker_name: broker?.name || `acct ${pos.account_id}`,
             qty: pos.qty,
             costLocal: pos.costLocal,
+            costUSD: pos.costUSD,
             avgCostLocal: pos.qty > 0 ? pos.costLocal / pos.qty : 0,
+            avgCostUSD:   pos.qty > 0 ? pos.costUSD   / pos.qty : 0,
         });
     }
     return [...byProduct.values()];
 }
 
-// ── External capital (sum of deposit−withdrawal in USD using current FX) ────
+// ── External capital (sum of deposit−withdrawal converted at txn-date FX) ───
+//   Each external flow is locked at the FX rate of its own date so this
+//   represents "real USD I put in / took out", not a recalculation at today's
+//   FX. The gap between this and current NAV captures all stock + FX P&L.
 function externalPrincipalUSD(txns, products) {
     const pmap = new Map(products.map(p => [p.id, p]));
     let total = 0;
@@ -951,7 +1014,8 @@ function externalPrincipalUSD(txns, products) {
         if (t.transaction_type !== 'deposit' && t.transaction_type !== 'withdrawal') continue;
         const p = pmap.get(t.product_id);
         if (!p || p.asset_class !== 'cash') continue;
-        const fx = fxRate(p.base_currency, 'USD');
+        const txnDate = (t.executed_at || '').slice(0, 10);
+        const fx = fxRateAt(p.base_currency, 'USD', txnDate);
         if (fx == null) continue;
         const sgn = t.transaction_type === 'deposit' ? 1 : -1;
         total += sgn * (+t.quantity) * fx;
@@ -987,28 +1051,30 @@ function renderOverview() {
     const positions  = buildPositions(viewData.txns, viewData.products);
     const aggregated = aggregateByProduct(positions);
 
-    // Compute MV / cash / principal in USD using current FX
-    let mvUSD = 0, cashUSD = 0, holdingsPrincipalUSD = 0;
+    // Market value uses CURRENT FX (today's rate) — what these holdings are
+    // worth right now in USD. Principal uses LOCKED USD cost basis from
+    // buildPositions (each contribution converted at the FX of its txn date).
+    // The gap between mvUSD and the locked principal therefore captures
+    // BOTH stock price moves AND FX moves (currency P&L).
+    let mvUSD = 0, cashUSD = 0;
     let missingPrice = 0, missingFx = 0;
 
     for (const a of aggregated) {
         const ccy = a.product.base_currency;
-        const fx  = fxRate(ccy, 'USD');
+        const fx  = fxRateLatest(ccy, 'USD');
         if (fx == null) { missingFx++; continue; }
 
         if (a.product.asset_class === 'cash') {
-            cashUSD              += a.qty * fx;
-            holdingsPrincipalUSD += a.costLocal * fx;
+            cashUSD += a.qty * fx;
         } else {
             const q = viewData.latestQuotes.get(a.product_id);
             if (!q) { missingPrice++; continue; }
-            mvUSD                += a.qty * q.close * fx;
-            holdingsPrincipalUSD += a.costLocal * fx;
+            mvUSD   += a.qty * q.close * fx;
         }
     }
     const navUSD = mvUSD + cashUSD;
 
-    // Total external principal
+    // Total external principal — each external flow locked at FX of its date
     const externalUSD = externalPrincipalUSD(viewData.txns, viewData.products);
 
     // Last day stats from daily_portfolio_stats (already in base ccy of portfolio)
@@ -1019,8 +1085,8 @@ function renderOverview() {
     const lastPnl   = latest ? +latest.daily_pnl    : null;
     const lastRet   = latest ? +latest.daily_return : null;
 
-    // For HKD conversion of summary numbers
-    const usdToHkd = fxRate('USD', 'HKD');
+    // For HKD conversion of summary numbers (current rate)
+    const usdToHkd = fxRateLatest('USD', 'HKD');
 
     // ── Build metric tiles ──
     const totalPnl    = navUSD - externalUSD;
@@ -1070,10 +1136,14 @@ function renderOverview() {
                 ${cashBreakdown.flatMap(a =>
                     a.accounts.map(acct => {
                         const ccy = a.product.base_currency;
-                        const fx  = fxRate(ccy, 'USD') ?? 1;
+                        const fx  = fxRateLatest(ccy, 'USD') ?? 1;
+                        const mv  = acct.qty * fx;
+                        const fxPnl = mv - acct.costUSD;   // pure FX P&L for this cash bucket
+                        const pnlStr = (Math.abs(fxPnl) > 0.005)
+                            ? `  ·  <span class="${sign(fxPnl)}">${withSign(fxPnl)} FX P&L</span>` : '';
                         return `<div class="item-row" style="border:none;padding:4px 0">
                             <span class="item-name">${ccy} @ ${acct.broker_name}</span>
-                            <span class="item-meta">${fmt.money(acct.qty)} ${ccy}  ·  $${fmt.money(acct.qty * fx)} USD</span>
+                            <span class="item-meta">${fmt.money(acct.qty)} ${ccy}  ·  $${fmt.money(mv)} USD${pnlStr}</span>
                         </div>`;
                     })
                 ).join('')}
@@ -1084,11 +1154,11 @@ function renderOverview() {
         grid.insertAdjacentHTML('afterend', breakdownHTML);
     }
 
-    // ── NAV by broker ──
+    // ── NAV by broker (current FX) ──
     const navByBroker = new Map();
     for (const a of aggregated) {
         const ccy = a.product.base_currency;
-        const fx  = fxRate(ccy, 'USD');
+        const fx  = fxRateLatest(ccy, 'USD');
         if (fx == null) continue;
         for (const acct of a.accounts) {
             const value = a.product.asset_class === 'cash'
@@ -1139,24 +1209,28 @@ function renderHoldings() {
     }
     hide('holdings-empty');
 
-    // Pre-compute per-row valuation and totals
+    // Pre-compute per-row valuation and totals.
+    //   mvUSD           uses CURRENT FX (today)
+    //   principalUSD    uses the LOCKED USD cost basis from buildPositions
+    //                   (each transaction converted at the FX of its date)
+    //   ⇒ unrealized P&L captures stock P&L + FX P&L combined
     const rows = aggregated.map(a => {
         const ccy = a.product.base_currency;
-        const fx  = fxRate(ccy, 'USD');
+        const fx  = fxRateLatest(ccy, 'USD');
         const isCash = a.product.asset_class === 'cash';
         const mktPriceLocal = isCash ? 1
             : (viewData.latestQuotes.get(a.product_id)?.close ?? null);
         const avgCostLocal  = a.qty > 0 ? a.costLocal / a.qty : 0;
+        const avgCostUSD    = a.qty > 0 ? a.costUSD   / a.qty : 0;
         const mvUSD         = (mktPriceLocal != null && fx != null)
             ? a.qty * mktPriceLocal * fx : null;
-        const principalUSD  = (fx != null) ? a.costLocal * fx : null;
-        const unrealizedUSD = (mvUSD != null && principalUSD != null)
-            ? mvUSD - principalUSD : null;
+        const principalUSD  = a.costUSD;        // LOCKED at txn-date FX
+        const unrealizedUSD = (mvUSD != null) ? mvUSD - principalUSD : null;
         const unrealizedPct = (unrealizedUSD != null && Math.abs(principalUSD) > 1e-9)
             ? unrealizedUSD / Math.abs(principalUSD) : null;
         return {
             agg: a, ccy, fx, isCash,
-            mktPriceLocal, avgCostLocal,
+            mktPriceLocal, avgCostLocal, avgCostUSD,
             mvUSD, principalUSD, unrealizedUSD, unrealizedPct,
         };
     });
@@ -1206,8 +1280,8 @@ function renderHoldings() {
             for (const acct of a.accounts) {
                 const acctMV = (r.mktPriceLocal != null && r.fx != null)
                     ? acct.qty * r.mktPriceLocal * r.fx : null;
-                const acctPrin = (r.fx != null) ? acct.costLocal * r.fx : null;
-                const acctPnl  = (acctMV != null && acctPrin != null) ? acctMV - acctPrin : null;
+                const acctPrin = acct.costUSD;       // LOCKED, per-account share of cost basis
+                const acctPnl  = (acctMV != null) ? acctMV - acctPrin : null;
                 html += `
                     <tr class="sub hidden" data-parent="${rowId}">
                         <td class="l">└ ${acct.broker_name}</td>
