@@ -236,7 +236,7 @@ class PortfolioCalculator:
             market_value = Decimal(0)
             cash_balance = Decimal(0)
             for pid, qty in holdings.items():
-                if qty <= 0:
+                if qty == 0:
                     continue
                 asset_class, ccy = product_meta[pid]
                 fx = self.fx_at(fx_series, base_ccy, ccy, d)
@@ -248,6 +248,7 @@ class PortfolioCalculator:
                     if close is None:
                         # Skip silently; first day of a brand-new ticker may lack quote
                         continue
+                    # Negative qty = short position → contributes negative MV (a liability).
                     market_value += qty * close * fx
 
             # External flows on d (only deposit/withdrawal on cash products)
