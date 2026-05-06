@@ -69,14 +69,15 @@ auth.users ── profiles ──┬── user_brokers ── broker       └�
                                           └── daily_portfolio_stats
 ```
 
-### Tables (13, all in `public`)
+### Tables (14, all in `public`)
 
 | Table | Rows (≈) | RLS | Notes |
 |---|---|---|---|
 | `currencies` | 3 | public read | `USD`, `HKD`, `CNY` |
 | `vendors` | 4 | n/a | `1=yfinance`, `2=fmp`, `3=yahoo_finance`, `4=manual` |
 | `broker` | 9 | public read | Institution catalog |
-| `products` | 509 | public read | Stocks + ETFs + cash products. `asset_class IN ('stock','etf','cash')` |
+| `products` | 509 | public read | Stocks + ETFs + cash + options. `asset_class IN ('stock','etf','cash','option')` |
+| `option_details` | varies | public read | 1:1 satellite for `asset_class='option'` rows. PK is `product_id`. Holds `option_type` (call/put), `strike_price`, `expiration_date`, `underlying_product_id`, `contract_multiplier` (default 100) |
 | `vendor_mappings` | 1.5k | n/a | `(product_id, vendor_id) → vendor_ticker` |
 | `quotes` | 900k | public read | OHLCV, **stored split-adjusted** (`auto_adjust=True`) |
 | `fx_rates` | 3.3k | public read | `(from, to, date) → rate`. PK includes date so we keep history |
@@ -85,7 +86,7 @@ auth.users ── profiles ──┬── user_brokers ── broker       └�
 | `portfolios` | 2 | own rows only | `base_currency`, `start_date` |
 | `transactions` | 33 | via portfolio | Source of truth — everything else is derived |
 | `portfolio_holdings` | 9 | via portfolio | Trigger-maintained snapshot |
-| `daily_portfolio_stats` | varies | via portfolio | Python-rebuilt; `total_nav` is `GENERATED` |
+| `daily_portfolio_stats` | varies | via portfolio | Python-rebuilt or PL/pgSQL-rebuilt; `total_nav` is `GENERATED` |
 
 ### Enums
 
@@ -93,25 +94,27 @@ auth.users ── profiles ──┬── user_brokers ── broker       └�
 transaction_type        = buy | sell | deposit | withdrawal
                         | dividend | fee | tax | interest
                         | exchange | split
+                        | exercise | assignment | expiration   -- options lifecycle
 market_data_source_type = realtime | delayed | eod | manual_fix
 ```
 
-### Functions (10)
+### Functions (11)
 
 | Function | Lang | Purpose |
 |---|---|---|
-| `txn_qty_delta(type, qty)` | SQL `IMMUTABLE` | Signed quantity per transaction type. `buy/deposit/dividend/interest/exchange/split → +qty`; `sell/withdrawal/fee/tax → −qty` |
+| `txn_qty_delta(type, qty)` | SQL `IMMUTABLE` | Signed quantity per transaction type. `buy/deposit/dividend/interest/exchange/split → +qty`; `sell/withdrawal/fee/tax/exercise/assignment/expiration → −qty` (the option-life types close the option position) |
 | `apply_txn_to_holding(pid, prod, broker, qty, price, type)` | PL/pgSQL | Single source of truth for per-transaction holding mutation. Weighted-avg cost on additions; deletes row at zero qty |
 | `transactions_sync_holdings_fn()` | PL/pgSQL trigger | INSERT applies incrementally; UPDATE/DELETE full-rebuilds the affected portfolio |
 | `rebuild_portfolio_holdings(pid)` | PL/pgSQL | Wipe + replay one portfolio's holdings |
 | `rebuild_all_holdings()` | PL/pgSQL | Loop above over all portfolios |
+| `rebuild_portfolio_stats(p_portfolio_id, p_from?, p_to?)` | PL/pgSQL `SECURITY DEFINER` | In-database rebuild of `daily_portfolio_stats`. Multiplier-aware (joins `option_details`). Auth-checked via `auth.uid()`. Returns the number of days rebuilt. **Called via `supabase.rpc(...)` from the Recalc button.** |
 | `upsert_cash_quotes(date)` | PL/pgSQL | `open=high=low=close=1.0` for every cash product |
 | `get_fx_rate(date, from, to)` | SQL `STABLE` | Latest rate ≤ `date`; returns `1.0` if `from = to` |
 | `get_latest_dates()` | SQL | Internal helper used by the index page |
 | `handle_new_user()` | `SECURITY DEFINER` trigger | Creates `profiles` row on signup |
 | `rls_auto_enable()` | utility | Helper used during initial RLS rollout |
 
-> ⚠️ `rebuild_portfolio_stats` and `rebuild_all_portfolio_stats` were **removed**. Daily NAV/P&L is now computed by `07_rebuild_portfolio_stats.py` (Python) and called via GitHub Actions.
+> Daily NAV/P&L can be rebuilt **two ways** that produce identical output: (a) `supabase.rpc('rebuild_portfolio_stats', {p_portfolio_id})` — runs in-database, sub-second, called by the Recalc button; (b) `python 07_rebuild_portfolio_stats.py --portfolio <id> --full` — Python equivalent, kept as a backup and also runnable via the `recalc_portfolio.yml` GitHub Actions workflow.
 
 ### Triggers (5)
 
@@ -164,16 +167,21 @@ daily_portfolio_stats   · ALL    · same pattern via portfolio
 
 Cash balances are tracked as positions in `asset_class='cash'` products. The `transaction_type` for the cash side of a trade is **NOT** `deposit`/`withdrawal`:
 
-| Event | Stock leg | Cash leg |
+| Event | Underlying / option leg | Cash leg |
 |---|---|---|
 | External cash IN | — | **`deposit`** on cash product |
 | External cash OUT | — | **`withdrawal`** on cash product |
-| Stock buy | `buy` on stock | **`sell`** on cash product |
-| Stock sell | `sell` on stock | **`buy`** on cash product |
+| Stock buy | `buy` on stock | **`sell`** on cash product (`qty × price`) |
+| Stock sell | `sell` on stock | **`buy`** on cash product (`qty × price`) |
 | FX swap | — | `sell` on src ccy + `buy` on dst ccy |
 | Dividend / interest | — | `dividend` / `interest` on cash product |
 | Fee / tax | — | `fee` / `tax` on cash product |
-| Stock split | `split` (quantity = *extra* shares) | — |
+| Stock split | `split` on stock (quantity = *extra* shares) | — |
+| Option buy | `buy` on option (`qty=contracts`, `price=premium`) | **`sell`** on cash (`qty × price × contract_multiplier`) |
+| Option sell | `sell` on option | **`buy`** on cash (`qty × price × contract_multiplier`) |
+| Option exercise (long) | `exercise` on option (closes position) + stock leg at strike (`buy` for call, `sell` for put) | mirror of stock leg |
+| Option assignment (short) | `assignment` on option (closes position) + stock leg at strike (`sell` for call, `buy` for put) | mirror of stock leg |
+| Option expires worthless | `expiration` on option (closes position; price=0) | — |
 
 Why: this lets `net_flows` be computed as `WHERE transaction_type IN ('deposit','withdrawal')` without double-counting internal cash movements.
 
@@ -195,14 +203,24 @@ If you write any new code that compares cost basis to market value, **never** co
 
 | Output | Where | FX |
 |---|---|---|
-| `daily_portfolio_stats` rows (Last Day P&L tile) | `07_rebuild_portfolio_stats.py` (Python in GitHub Actions) | Historical |
+| `daily_portfolio_stats` rows (Last Day P&L tile) | `rebuild_portfolio_stats` PL/pgSQL fn — called via `supabase.rpc(...)` from the Recalc button OR via `07_rebuild_portfolio_stats.py` (backup) | Historical |
 | Live overview & holdings dashboard | `docs/portfolio.html` JS (browser) | Cost locked at txn date; MV at today |
+
+For options, all three paths multiply by `option_details.contract_multiplier` when computing market value (`qty × close × multiplier × fx`).
+
+### 4b. Options: market value & no-quote behavior
+
+- An option position's market value uses the same yfinance OCC ticker (e.g. `AMD260619C00200000`) that's stored on the product. The daily sync includes `asset_class='option'` so quotes are pulled automatically.
+- If no quote exists yet (newly created contract or illiquid strike), the holdings table renders `MV = —` and the live NAV simply omits the position from market value. The `daily_portfolio_stats` rebuild treats the missing close as `NULL`, so the day-end MV contribution is 0 until a quote arrives.
+- Cost basis is `qty × premium × multiplier` (not `qty × premium`). The `submitTxn` cash-leg auto-fan-out applies this — anything that inserts option transactions outside the frontend MUST do the same.
 
 ### 5. The recalc button trigger path
 
-`docs/portfolio.html` → fine-grained PAT (in `localStorage`, prompted once) → POST to GitHub `workflow_dispatch` → `recalc_portfolio.yml` → runs `07_rebuild_portfolio_stats.py --portfolio <id> --full` → upserts `daily_portfolio_stats`.
+`docs/portfolio.html` → `supabase.rpc('rebuild_portfolio_stats', { p_portfolio_id })` → PL/pgSQL function (SECURITY DEFINER, auth-checked via `auth.uid()`) → upserts `daily_portfolio_stats` → JS auto-refreshes the dashboard.
 
-PAT scope required: **Actions: Read and write** on `AndyGE44/Portfolio_Mangement` (fine-grained), or `workflow` (classic).
+This runs in-database in well under a second; **no GitHub PAT required** anymore.
+
+The legacy GitHub-Actions path (`recalc_portfolio.yml` → `07_rebuild_portfolio_stats.py`) is kept as a backup. To trigger it manually from the Actions tab, the workflow needs `Actions: Read and write` permission.
 
 ---
 
@@ -264,6 +282,8 @@ Both directions (USD→HKD and HKD→USD) are written together.
 6. **Don't put secrets in `docs/`.** That directory is published via GitHub Pages. The Supabase anon key is fine; the service-role key and `DB_CONNECTION` are not.
 7. **Don't query `quotes` without `vendor_id = 3`.** That column is part of the PK and there can be multiple vendors per `(product, date, source_type)`.
 8. **Don't push without considering `.gitignore`.** `.env`, `*.log`, `__pycache__`, `.claude` are blocked. Don't unblock them.
+9. **Don't forget the contract multiplier on options.** Cost basis & cash-leg amounts are `qty × premium × multiplier` (default 100), but the option product's `quantity` is contract count (not multiplied). Same rule for market value: `qty × close × multiplier × fx`.
+10. **Don't insert an option transaction without a matching `option_details` row.** The frontend's "+ Option" panel creates both atomically — if you bypass it, do `INSERT INTO products(asset_class='option')` then `INSERT INTO option_details(...)` in the same migration.
 
 ---
 
@@ -273,7 +293,7 @@ Both directions (USD→HKD and HKD→USD) are written together.
 - **Conventions change?** Update the cash-leg/FX-leg table in **all four places**: `README.md`, `SCRIPTS.md`, `CLAUDE.md`, and the in-code comment in `07_rebuild_portfolio_stats.py`.
 - **New script?** Add a section to `SCRIPTS.md` and a row to the repo map in `README.md`.
 - **Frontend change that touches the calculation?** Make sure the JS path agrees with the Python path on FX handling.
-- **New transaction type?** Update `txn_qty_delta` (PL/pgSQL function) AND `TXN_SIGN` in `07_rebuild_portfolio_stats.py` AND `TXN_SIGN` in `docs/portfolio.html`. Three places, one logical change.
+- **New transaction type?** Update `txn_qty_delta` (PL/pgSQL function) AND `rebuild_portfolio_stats` PL/pgSQL CASE blocks AND `TXN_SIGN` in `07_rebuild_portfolio_stats.py` AND `TXN_SIGN` in `docs/portfolio.html`. Four places, one logical change.
 
 ---
 

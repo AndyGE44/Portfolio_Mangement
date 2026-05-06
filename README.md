@@ -10,24 +10,26 @@ A personal quantitative finance platform built on **Supabase (PostgreSQL)** + a 
 ┌─────────────────────────── GitHub Actions (cron + dispatch) ───────────────────────────┐
 │  daily_sync.yml      (weekdays 21:10 UTC)                                              │
 │    1. 02_yfbatch_sync_price.py       — OHLCV via yfinance (auto_adjust=True)           │
+│       includes asset_class IN ('stock','etf','option') — option quotes synced too      │
 │    2. upsert_cash_quotes(today)      — cash products priced at 1.0                     │
 │    3. 06_add_fx_rate.py --fetch …    — daily USD↔HKD rate                              │
 │    4. 07_rebuild_portfolio_stats.py  — refresh today's daily_portfolio_stats           │
 │                                                                                        │
-│  recalc_portfolio.yml (workflow_dispatch — triggered from the web "↻ Recalc" button)   │
+│  recalc_portfolio.yml (workflow_dispatch — backup, kept for batch jobs)                │
 │    └─ 07_rebuild_portfolio_stats.py --portfolio <id> --full                            │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
                                          │
                                          ▼
 ┌─────────────────────── Supabase (Postgres + Auth + RLS + REST) ────────────────────────┐
 │  Reference   currencies · vendors · broker · fx_rates                                  │
-│  Market data products · vendor_mappings · quotes                                       │
+│  Market data products · option_details · vendor_mappings · quotes                      │
 │  Auth/Users  auth.users (built-in) · profiles                                          │
 │  Portfolio   user_brokers · portfolios · transactions                                  │
 │  Derived     portfolio_holdings  · daily_portfolio_stats                               │
 │                                                                                        │
 │  Functions   txn_qty_delta · apply_txn_to_holding · transactions_sync_holdings_fn      │
 │              rebuild_portfolio_holdings · rebuild_all_holdings                         │
+│              rebuild_portfolio_stats  ← in-DB rebuild, called by Recalc button         │
 │              upsert_cash_quotes · get_fx_rate · handle_new_user                        │
 │  Triggers    transactions → portfolio_holdings (auto-sync)                             │
 │              auth.users → profiles (auto-create)                                       │
@@ -36,12 +38,15 @@ A personal quantitative finance platform built on **Supabase (PostgreSQL)** + a 
                                          ▼
 ┌──────────────────────────────── Frontend (docs/) ──────────────────────────────────────┐
 │  index.html       — trading terminal (watchlist + candlestick chart)                   │
-│  portfolio.html   — portfolio dashboard:                                               │
+│  portfolio.html   — portfolio dashboard (light theme):                                 │
 │                       • toolbar with portfolio switcher                                │
 │                       • overview metrics (NAV, P&L, principal, cash, broker NAV)       │
 │                       • holdings table with expandable per-broker breakdown            │
-│                       • collapsible forms for add-portfolio/broker/txn/cash/FX         │
-│                       • ↻ Recalc button → triggers GitHub Actions via PAT              │
+│                       • collapsible forms for + Portfolio / + Broker / + Txn /         │
+│                         + Option (create OCC contract) / Cash / FX                     │
+│                       • + Txn supports buy/sell/dividend/split + exercise/             │
+│                         assignment/expiration with auto multi-leg fan-out              │
+│                       • ↻ Recalc → supabase.rpc('rebuild_portfolio_stats')             │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -74,8 +79,8 @@ A personal quantitative finance platform built on **Supabase (PostgreSQL)** + a 
        DEFAULT_TICKER: 'NVDA',
    };
    ```
-7. **Sign up via the web UI** (Supabase Auth Email+Password), create a portfolio, add transactions, click ↻ Recalc.
-8. **Wire up GitHub Actions** — add the `DB_CONNECTION` repo secret. The cron will run weekdays at 21:10 UTC. The "↻ Recalc" button needs a fine-grained PAT with `Actions: Read and write` scope on this repo (stored only in your browser's `localStorage`).
+7. **Sign up via the web UI** (Supabase Auth Email+Password), create a portfolio, add transactions, click ↻ Recalc. Recalc now runs in-database via `supabase.rpc('rebuild_portfolio_stats')` — no PAT needed.
+8. **Wire up GitHub Actions** — add the `DB_CONNECTION` repo secret. The cron will run weekdays at 21:10 UTC. The legacy `recalc_portfolio.yml` workflow is kept as a backup and only needs `Actions: Read and write` if you want to invoke it from the GitHub UI.
 
 ---
 
@@ -88,7 +93,8 @@ A personal quantitative finance platform built on **Supabase (PostgreSQL)** + a 
 | `currencies` | ISO codes (USD, HKD, CNY) — small, public | public read |
 | `vendors` | Price data sources (`yfinance`, `fmp`, `yahoo_finance`, `manual`) | n/a |
 | `broker` | Broker institutions catalog (Futu, IBKR, …) — shared | public read |
-| `products` | Tradeable assets — stocks, ETFs, **and cash products** (`asset_class='cash'`) | public read |
+| `products` | Tradeable assets — stocks, ETFs, cash products, **and equity options**. `asset_class IN ('stock','etf','cash','option')` | public read |
+| `option_details` | 1:1 satellite for `asset_class='option'` rows. PK is `product_id`. Stores `option_type` (call/put), `strike_price`, `expiration_date`, `underlying_product_id`, `contract_multiplier` (default 100). | public read |
 | `vendor_mappings` | `(product_id, vendor_id)` → vendor-specific ticker | n/a |
 | `quotes` | Daily OHLCV. PK `(product_id, trade_date, source_type, vendor_id)` | public read |
 | `fx_rates` | Daily FX. PK `(from_currency, to_currency, rate_date)` | public read |
@@ -105,6 +111,7 @@ A personal quantitative finance platform built on **Supabase (PostgreSQL)** + a 
 transaction_type     = buy | sell | deposit | withdrawal
                      | dividend | fee | tax | interest
                      | exchange | split
+                     | exercise | assignment | expiration   -- options lifecycle
 market_data_source_type = realtime | delayed | eod | manual_fix
 ```
 
@@ -114,7 +121,7 @@ Cash balances are tracked as positions in `asset_class='cash'` products (one per
 
 **Transaction-type rules (post-2026-04 migration):**
 
-| Event | Stock leg | Cash leg |
+| Event | Underlying / option leg | Cash leg |
 |---|---|---|
 | External cash IN | — | `deposit` on cash product |
 | External cash OUT | — | `withdrawal` on cash product |
@@ -123,24 +130,30 @@ Cash balances are tracked as positions in `asset_class='cash'` products (one per
 | FX swap | — | `sell` on src ccy + `buy` on dst ccy |
 | Dividend / interest | — | `dividend` / `interest` on cash product |
 | Fee / tax | — | `fee` / `tax` on cash product |
-| Stock split | `split` (stores the *extra* shares) | — |
+| Stock split | `split` on stock (stores the *extra* shares) | — |
+| Option buy | `buy` on option (`qty=contracts`, `price=premium`) | **`sell`** on cash, amount = `qty × price × contract_multiplier` |
+| Option sell | `sell` on option | **`buy`** on cash, same multiplier-aware amount |
+| Option exercise (long) | `exercise` on option (closes position) **+** stock leg at strike (`buy` on call, `sell` on put) | mirror of stock leg (cash flow at `shares × strike`) |
+| Option assignment (short) | `assignment` on option (closes position) **+** stock leg at strike (`sell` on call, `buy` on put) | mirror of stock leg |
+| Option expires worthless | `expiration` on option (closes position; `price=0`, no cash flow) | — |
 
-Why: `deposit` / `withdrawal` are **reserved for genuinely external flows**. The Python rebuild script computes `net_flows` strictly from those two types, so internal cash movements never inflate or deflate the daily-flow figure.
+Why: `deposit` / `withdrawal` are **reserved for genuinely external flows**. The rebuild scripts compute `net_flows` strictly from those two types, so internal cash movements never inflate or deflate the daily-flow figure. The frontend's "+ Txn" auto-creates the cash leg with the correct typing **and** applies the contract multiplier for options — anything that inserts transactions outside the frontend MUST do the same.
 
 ### 4. Functions
 
 | Function | Purpose |
 |---|---|
-| `txn_qty_delta(type, qty)` | Signed quantity effect of a transaction type. `buy/deposit/dividend/interest/exchange/split → +qty`; `sell/withdrawal/fee/tax → −qty` |
+| `txn_qty_delta(type, qty)` | Signed quantity effect of a transaction type. `buy/deposit/dividend/interest/exchange/split → +qty`; `sell/withdrawal/fee/tax/exercise/assignment/expiration → −qty` |
 | `apply_txn_to_holding(...)` | Single source of truth for how one transaction mutates a `portfolio_holdings` row. Implements weighted-avg cost on additions, deletes the row at zero qty. |
 | `transactions_sync_holdings_fn()` | Trigger function fired `AFTER INSERT/UPDATE/DELETE` on `transactions`. INSERTs apply incrementally; UPDATEs/DELETEs full-rebuild that portfolio. |
 | `rebuild_portfolio_holdings(pid)` | Replay all transactions for one portfolio in chronological order. Use after bulk imports or suspected drift. |
 | `rebuild_all_holdings()` | Loop the above over every portfolio. |
+| `rebuild_portfolio_stats(p_portfolio_id, p_from?, p_to?)` | `SECURITY DEFINER` PL/pgSQL function. In-database rebuild of `daily_portfolio_stats`. Multiplier-aware (joins `option_details`). Auth-checked via `auth.uid()`. Returns the number of days rebuilt. **Called via `supabase.rpc(...)` from the Recalc button** — sub-second on a year of data. |
 | `upsert_cash_quotes(date)` | Insert `open=high=low=close=1.0` rows into `quotes` for every cash product on a given date. Run by the daily cron. |
 | `get_fx_rate(date, from_ccy, to_ccy)` | Latest rate ≤ `date`. Returns `1.0` if `from_ccy = to_ccy`. |
 | `handle_new_user()` | `SECURITY DEFINER` trigger on `auth.users` — auto-creates a matching `profiles` row on signup. |
 
-> **Note:** `daily_portfolio_stats` is no longer maintained by a Postgres function. Daily P&L is computed by `07_rebuild_portfolio_stats.py` (Python) and upserted in bulk. The web "↻ Recalc" button triggers this script via GitHub Actions `workflow_dispatch`.
+> **Recalc has two paths that produce identical output:** the Recalc button calls `supabase.rpc('rebuild_portfolio_stats')` (in-database, fast); the GitHub Actions workflow `recalc_portfolio.yml` runs `07_rebuild_portfolio_stats.py` (kept as a backup). The Python path is also useful for local dry-runs against the prod DB.
 
 ### 5. Triggers
 
@@ -187,8 +200,12 @@ Weekdays at **21:10 UTC** (16:10 ET / 17:10 EDT):
 3. `06_add_fx_rate.py --fetch ... --skip-existing` — pulls USD↔HKD daily close
 4. `07_rebuild_portfolio_stats.py --date today` — recompute today's `daily_portfolio_stats` for all portfolios
 
-### On-demand recalc (`.github/workflows/recalc_portfolio.yml`)
-Triggered from the web UI by clicking **↻ Recalc** on the portfolio dashboard. Runs `07_rebuild_portfolio_stats.py --portfolio <id> --full`, replaying everything from the portfolio's `start_date` through today.
+### On-demand recalc
+
+Two interchangeable paths produce identical output:
+
+- **Recalc button (default)** — `docs/portfolio.html` calls `supabase.rpc('rebuild_portfolio_stats', { p_portfolio_id })`. Runs in Postgres, sub-second on a year of data, multiplier-aware for options, auth-checked via `auth.uid()`.
+- **`recalc_portfolio.yml` (backup)** — `workflow_dispatch` job runs `07_rebuild_portfolio_stats.py --portfolio <id> --full`. Useful for batch jobs or local dry-runs against the prod DB.
 
 ---
 
@@ -204,10 +221,10 @@ Triggered from the web UI by clicking **↻ Recalc** on the portfolio dashboard.
 
 | What | Lives in | FX strategy |
 |---|---|---|
-| `daily_portfolio_stats` rows (Last Day P&L, etc.) | `07_rebuild_portfolio_stats.py` (Python, GitHub Actions) | **Historical** FX at each date |
+| `daily_portfolio_stats` rows (Last Day P&L, etc.) | `rebuild_portfolio_stats` PL/pgSQL fn (Recalc button) **or** `07_rebuild_portfolio_stats.py` (backup) | **Historical** FX at each date |
 | Live overview & holdings table | `portfolio.html` JavaScript (browser) | Cost basis **locked** at each transaction's FX date; market value uses today's FX |
 
-Both treat FX consistently, so the gap between mvUSD and the locked principal correctly captures stock P&L + FX P&L.
+Both treat FX consistently, so the gap between mvUSD and the locked principal correctly captures stock P&L + FX P&L. For options, all three paths multiply by `option_details.contract_multiplier` when computing market value (`qty × close × multiplier × fx`).
 
 ---
 

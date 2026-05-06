@@ -103,9 +103,10 @@ parse error.
 
 ## 02_sync_prices/02_yfbatch_sync_price.py — Daily Price Sync
 
-**Purpose:** Downloads the previous trading day's OHLCV data for all active stock products
-and upserts it into the `quotes` table. Runs automatically every weekday at **4:10 PM EST**
-via the `daily_sync.yml` GitHub Actions workflow.
+**Purpose:** Downloads the previous trading day's OHLCV data for all active stock, ETF and
+**option** products (`asset_class IN ('stock','etf','option')`) and upserts it into the
+`quotes` table. Runs automatically every weekday at **4:10 PM EST** via the `daily_sync.yml`
+GitHub Actions workflow.
 
 **Usage (manual trigger):**
 
@@ -126,7 +127,8 @@ python 02_yfbatch_sync_price.py
 
 1. **Resolve vendor** — queries `vendors` for the `yahoo_finance` row and gets its `id`.
 2. **Fetch active products** — joins `products` and `vendor_mappings` to get every active
-   stock product along with its `yahoo_finance` vendor ticker.
+   stock / ETF / option product along with its `yahoo_finance` vendor ticker. Options use
+   their OCC ticker (e.g. `AMD260619C00200000`); yfinance recognises this format.
 3. **Bulk download** — calls `yf.download(tickers_list, auto_adjust=True, threads=True, ...)`
    once for all tickers. `auto_adjust=True` returns split- and dividend-adjusted prices, so
    replaying transactions with the post-split share count never produces a phantom NAV
@@ -543,16 +545,23 @@ were already fetched or manually entered.
 
 ---
 
-## 07_rebuild_portfolio_stats.py — Daily NAV / P&L (Canonical)
+## 07_rebuild_portfolio_stats.py — Daily NAV / P&L (Canonical Python; backup path)
 
 **Purpose:** Rebuilds the `daily_portfolio_stats` table from `transactions` + `quotes` +
-`fx_rates`. This is the **canonical** implementation — the previous PL/pgSQL functions
-(`rebuild_portfolio_stats`, `rebuild_all_portfolio_stats`) have been dropped.
+`fx_rates`. There are now **two interchangeable implementations** of the same logic:
+
+1. **In-database:** `rebuild_portfolio_stats(p_portfolio_id, p_from?, p_to?)` PL/pgSQL
+   function (`SECURITY DEFINER`, auth-checked via `auth.uid()`). Called by the **↻ Recalc**
+   button via `supabase.rpc(...)`. Sub-second on a year of data.
+2. **This Python script:** equivalent logic, kept as a backup and for batch jobs.
+
+If you change the formula in either path, change it in the other — they MUST agree.
 
 Used by:
-- The **daily cron** (step 7 of `daily_sync.yml`) — `--date today`
-- The **on-demand recalc workflow** (`recalc_portfolio.yml`, triggered from the web
-  "↻ Recalc" button) — `--portfolio <id> --full`
+- The **daily cron** (step 4 of `daily_sync.yml`) — `--date today`
+- The **on-demand recalc workflow** (`recalc_portfolio.yml`, kept as a backup) —
+  `--portfolio <id> --full`
+- Local dry-runs against the prod DB (`--dry-run`)
 
 **Usage:**
 
@@ -587,7 +596,8 @@ python 07_rebuild_portfolio_stats.py --portfolio 2 --full --dry-run
 ### Daily formulas (per portfolio, per day, in base ccy)
 
 ```
-market_value(d) = Σ over non-cash positions of  qty × close(d) × fx_at(d)
+market_value(d) = Σ over non-cash positions of  qty × close(d) × multiplier × fx_at(d)
+                  (multiplier = option_details.contract_multiplier for options, else 1)
 cash_balance(d) = Σ over cash positions     of  qty × fx_at(d)
 total_nav(d)    = market_value + cash_balance       (generated column)
 net_flows(d)    = Σ external-flow signed qty × fx_at(d)   on day d only
@@ -599,6 +609,10 @@ daily_return(d) = daily_pnl / (total_nav(d−1) + net_flows(d))
 
 `txn_qty_delta` is inlined as a `CASE` expression in the SQL replay query — the script does
 NOT depend on the Postgres function (so it survives if the function is ever renamed).
+
+For options, `load_transactions` LEFT JOINs `option_details` to expose
+`contract_multiplier` per product; the Python market-value loop multiplies by it. The
+PL/pgSQL `rebuild_portfolio_stats` does the same join into a temp table.
 
 ### Performance design (single-connection / bulk-fetch)
 
@@ -628,15 +642,20 @@ If your DB does not yet follow these conventions, run the migration in
 
 ### Triggering from the web
 
-`docs/portfolio.html` calls GitHub's REST API:
+`docs/portfolio.html` calls Supabase directly — no GitHub PAT, no workflow dispatch:
 
 ```js
-POST /repos/{owner}/{repo}/actions/workflows/recalc_portfolio.yml/dispatches
-Body: { ref: 'main', inputs: { portfolio_id: '<id>', mode: 'full' } }
-Auth: fine-grained PAT with "Actions: Read and write" on this repo
+const { data, error } = await sb.rpc('rebuild_portfolio_stats', {
+    p_portfolio_id: currentPortfolioId,
+});
+// data === number of days rebuilt
 ```
 
-The PAT is stored in the user's browser `localStorage`; nothing server-side proxies it.
+The RPC is allowed by RLS because `rebuild_portfolio_stats` is `SECURITY DEFINER` and
+gates ownership via `auth.uid()`. Runs in well under a second on a year of data.
+
+The legacy `recalc_portfolio.yml` GitHub Actions path still works (run from the Actions
+tab) and is kept as a backup. It needs the `DB_CONNECTION` repo secret.
 
 ---
 
@@ -685,16 +704,23 @@ Important convention shared across `06_add_fx_rate.py`, the web frontend, and
 | Event | Stored as |
 |---|---|
 | External cash deposit / withdrawal | `deposit` / `withdrawal` on cash product |
-| Cash leg of a stock **buy** | `sell` on cash product (cash decreased) |
-| Cash leg of a stock **sell** | `buy` on cash product (cash increased) |
+| Cash leg of a stock **buy** | `sell` on cash product (cash decreased, amount = `qty × price`) |
+| Cash leg of a stock **sell** | `buy` on cash product (cash increased, amount = `qty × price`) |
 | FX swap (sell ccy A, buy ccy B) | `sell` on cash product A + `buy` on cash product B |
 | Dividend / interest received | `dividend` / `interest` on cash product |
 | Fee / tax paid | `fee` / `tax` on cash product |
 | Stock split | `split` on the stock (quantity = *extra* shares only) |
+| Option **buy** | `buy` on option (`qty=contracts`, `price=premium`) + cash leg `sell` on cash, amount = `qty × price × contract_multiplier` |
+| Option **sell** | `sell` on option + cash leg `buy` on cash with the same multiplier-aware amount |
+| Option **exercise** (long) | `exercise` on option (closes position; `price=0`) + stock leg at strike (`buy` on call, `sell` on put) + matching cash leg |
+| Option **assignment** (short) | `assignment` on option (closes position; `price=0`) + stock leg at strike (`sell` on call, `buy` on put) + matching cash leg |
+| Option **expiration** (worthless) | `expiration` on option (closes position; `price=0`) — no cash leg |
 
-Why: this lets `07_rebuild_portfolio_stats.py` compute external `net_flows` simply with
-`WHERE transaction_type IN ('deposit','withdrawal')` — internal cash movements never get
-double-counted as external flows.
+Why: this lets the rebuild paths compute external `net_flows` simply with
+`WHERE transaction_type IN ('deposit','withdrawal')` — internal cash movements (including
+option premium / settlement) never get double-counted as external flows. **Option cash
+legs MUST be multiplied by `contract_multiplier`** — the frontend does this automatically
+in `submitTxn`; any other writer must do the same.
 
 The web frontend (`docs/portfolio.html`) auto-creates the cash leg with the correct type
 when the user submits a buy/sell/FX through the form. If you insert raw rows via SQL or
