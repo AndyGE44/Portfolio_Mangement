@@ -61,6 +61,9 @@ TXN_SIGN = {
     "tax":         -1,
     "exchange":    +1,   # legacy; new FX uses buy/sell on cash
     "split":       +1,   # split row stores the extra shares (delta)
+    "exercise":    -1,   # option lifecycle: all reduce position
+    "assignment":  -1,
+    "expiration":  -1,
 }
 EXTERNAL_TYPES = {"deposit", "withdrawal"}
 
@@ -128,9 +131,11 @@ class PortfolioCalculator:
                    t.product_id        AS pid,
                    t.quantity          AS qty,
                    p.asset_class       AS asset_class,
-                   p.base_currency     AS ccy
+                   p.base_currency     AS ccy,
+                   COALESCE(od.contract_multiplier, 1) AS multiplier
             FROM   transactions t
             JOIN   products p ON p.id = t.product_id
+            LEFT JOIN option_details od ON od.product_id = t.product_id
             WHERE  t.portfolio_id = :pid
             ORDER  BY t.executed_at, t.id
         """), {"pid": portfolio_id}).mappings().all()
@@ -207,9 +212,9 @@ class PortfolioCalculator:
                        prev_nav: Decimal | None) -> list[dict]:
         # Track holdings across days. Pointer marches through the sorted txns.
         holdings: dict[int, Decimal] = defaultdict(Decimal)
-        product_meta: dict[int, tuple[str, str]] = {}   # pid -> (asset_class, ccy)
+        product_meta: dict[int, tuple[str, str, int]] = {}  # pid -> (asset_class, ccy, multiplier)
         for t in txns:
-            product_meta[t["pid"]] = (t["asset_class"], t["ccy"])
+            product_meta[t["pid"]] = (t["asset_class"], t["ccy"], t.get("multiplier", 1))
 
         # Pre-bucket transactions by date for fast same-day external-flow scan
         txns_by_date: dict[date, list[dict]] = defaultdict(list)
@@ -238,7 +243,7 @@ class PortfolioCalculator:
             for pid, qty in holdings.items():
                 if qty == 0:
                     continue
-                asset_class, ccy = product_meta[pid]
+                asset_class, ccy, multiplier = product_meta[pid]
                 fx = self.fx_at(fx_series, base_ccy, ccy, d)
                 if asset_class == "cash":
                     cash_balance += qty * fx
@@ -248,8 +253,9 @@ class PortfolioCalculator:
                     if close is None:
                         # Skip silently; first day of a brand-new ticker may lack quote
                         continue
-                    # Negative qty = short position → contributes negative MV (a liability).
-                    market_value += qty * close * fx
+                    # multiplier is 1 for stocks/ETFs, 100 for options.
+                    # Negative qty = short position → contributes negative MV.
+                    market_value += qty * close * Decimal(multiplier) * fx
 
             # External flows on d (only deposit/withdrawal on cash products)
             net_flows = Decimal(0)

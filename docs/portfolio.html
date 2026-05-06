@@ -5,27 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portfolio Manager</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="config.js"></script>
     <style>
+        :root {
+            --bg:                #f6f8fa;
+            --surface:           #ffffff;
+            --surface-hover:     #f0f2f5;
+            --surface-subtle:    #eaeef2;
+            --border:            #d0d7de;
+            --text:              #1f2328;
+            --text-muted:        #57606a;
+            --text-subtle:       #8c959f;
+            --text-disabled:     #adb5bd;
+            --accent:            #0969da;
+            --success:           #1a7f37;
+            --danger:            #cf222e;
+            --warning:           #9a6700;
+            --purple:            #8250df;
+            --btn-green-bg:      #2da44e;
+            --btn-green-hover:   #238636;
+            --btn-blue-bg:       #0969da;
+            --btn-blue-hover:    #0860ca;
+            --btn-red-bg:        #cf222e;
+            --btn-red-hover:     #a40e26;
+            --btn-amber-bg:      #9a6700;
+            --btn-amber-hover:   #7d5200;
+            --tag-stock-bg:      #dbeafe;
+            --tag-stock-text:    #1d4ed8;
+            --tag-etf-bg:        #dcfce7;
+            --tag-etf-text:      #15803d;
+            --tag-cash-bg:       #fef3c7;
+            --tag-cash-text:     #92400e;
+            --alert-err-bg:      #ffebe9;
+            --alert-err-border:  #cf222e;
+            --alert-ok-bg:       #dafbe1;
+            --alert-ok-border:   #1a7f37;
+            --alert-info-bg:     #ddf4ff;
+            --alert-info-border: #0969da;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            background: #0d1117; color: #c9d1d9;
+            background: var(--bg); color: var(--text);
             font-family: 'Courier New', Courier, monospace;
-            font-size: 13px; min-height: 100vh;
+            font-size: 15px; min-height: 100vh; line-height: 1.5;
         }
 
         /* ── Header ── */
         header {
-            background: #161b22; border-bottom: 1px solid #30363d;
+            background: var(--surface); border-bottom: 1px solid var(--border);
             padding: 0 24px; height: 48px;
             display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
-        .logo { color: #58a6ff; font-size: 14px; letter-spacing: 3px; font-weight: bold; }
+        .logo { color: var(--accent); font-size: 16px; letter-spacing: 3px; font-weight: bold; }
         .logo a { color: inherit; text-decoration: none; }
-        .header-right { display: flex; align-items: center; gap: 16px; font-size: 11px; }
-        .user-email { color: #8b949e; }
-        a.nav-link { color: #8b949e; text-decoration: none; }
-        a.nav-link:hover { color: #c9d1d9; }
+        .header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+        .user-email { color: var(--text-muted); }
+        a.nav-link { color: var(--text-muted); text-decoration: none; }
+        a.nav-link:hover { color: var(--text); }
 
         /* ── Layout ── */
         main { max-width: 1280px; margin: 0 auto; padding: 24px 20px; }
@@ -33,42 +71,44 @@
         /* ── Login ── */
         .login-wrap { max-width: 340px; margin: 80px auto 0; }
         .login-wrap h2 {
-            color: #58a6ff; font-size: 13px; letter-spacing: 3px;
+            color: var(--accent); font-size: 15px; letter-spacing: 3px;
             text-transform: uppercase; margin-bottom: 28px; text-align: center;
         }
 
         /* ── Card ── */
         .card {
-            background: #161b22; border: 1px solid #30363d;
-            border-radius: 6px; padding: 20px 22px; margin-bottom: 18px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 6px; padding: 22px 24px; margin-bottom: 18px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
         .card-title {
-            color: #58a6ff; font-size: 11px; letter-spacing: 2px;
+            color: var(--accent); font-size: 13px; letter-spacing: 2px;
             text-transform: uppercase; margin-bottom: 16px;
-            padding-bottom: 10px; border-bottom: 1px solid #21262d;
+            padding-bottom: 10px; border-bottom: 1px solid var(--surface-subtle);
             display: flex; align-items: center; justify-content: space-between;
         }
         .card-title .title-meta {
-            color: #484f58; font-size: 10px; letter-spacing: 1px;
+            color: var(--text-subtle); font-size: 12px; letter-spacing: 1px;
             font-weight: normal; text-transform: none;
         }
 
         /* ── Toolbar (top sticky-ish bar) ── */
         .toolbar {
-            background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
             padding: 12px 16px; margin-bottom: 18px;
             display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
         .toolbar-left  { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 320px; }
         .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .tb-label  { color: #8b949e; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .tb-label  { color: var(--text-muted); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
         .tb-select {
-            background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
-            color: #58a6ff; padding: 6px 10px; height: 32px;
-            font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--accent); padding: 6px 10px; height: 32px;
+            font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold;
             outline: none; min-width: 200px; cursor: pointer;
         }
-        .tb-select:focus { border-color: #58a6ff; }
+        .tb-select:focus { border-color: var(--accent); }
 
         /* ── Form ── */
         .form-row {
@@ -76,86 +116,86 @@
             align-items: flex-end; margin-bottom: 14px;
         }
         .form-group { display: flex; flex-direction: column; gap: 5px; }
-        label { color: #8b949e; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        label { color: var(--text-muted); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
         input[type="text"], input[type="email"], input[type="password"],
         input[type="number"], input[type="date"], select {
-            background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
-            color: #c9d1d9; padding: 6px 10px;
-            font-family: 'Courier New', monospace; font-size: 12px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text); padding: 6px 10px;
+            font-family: 'Courier New', monospace; font-size: 14px;
             outline: none; height: 30px;
         }
-        input:focus, select:focus { border-color: #58a6ff; }
-        input::placeholder { color: #484f58; }
+        input:focus, select:focus { border-color: var(--accent); }
+        input::placeholder { color: var(--text-subtle); }
         input.w-full { width: 100%; }
 
         /* ── Buttons ── */
         .btn {
-            background: #238636; color: #fff; border: none; border-radius: 4px;
+            background: var(--btn-green-bg); color: #fff; border: none; border-radius: 4px;
             padding: 0 16px; height: 30px; font-family: 'Courier New', monospace;
-            font-size: 11px; font-weight: bold; letter-spacing: 1px;
+            font-size: 13px; font-weight: bold; letter-spacing: 1px;
             cursor: pointer; text-transform: uppercase; white-space: nowrap;
         }
-        .btn:hover { background: #2ea043; }
-        .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+        .btn:hover { background: var(--btn-green-hover); }
+        .btn:disabled { background: var(--surface-subtle); color: var(--text-subtle); cursor: not-allowed; }
         .btn-ghost {
-            background: transparent; border: 1px solid #30363d; color: #8b949e;
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted);
             border-radius: 4px; padding: 0 12px; height: 30px;
-            font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer;
+            font-family: 'Courier New', monospace; font-size: 13px; cursor: pointer;
             white-space: nowrap;
         }
-        .btn-ghost:hover { border-color: #8b949e; color: #c9d1d9; }
-        .btn-ghost.active { border-color: #58a6ff; color: #58a6ff; }
-        .btn-blue  { background: #1f6feb; }
-        .btn-blue:hover  { background: #388bfd; }
-        .btn-red   { background: #b91c1c; }
-        .btn-red:hover   { background: #dc2626; }
-        .btn-amber { background: #92400e; }
-        .btn-amber:hover { background: #b45309; }
+        .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+        .btn-ghost.active { border-color: var(--accent); color: var(--accent); }
+        .btn-blue  { background: var(--btn-blue-bg); }
+        .btn-blue:hover  { background: var(--btn-blue-hover); }
+        .btn-red   { background: var(--btn-red-bg); }
+        .btn-red:hover   { background: var(--btn-red-hover); }
+        .btn-amber { background: var(--btn-amber-bg); }
+        .btn-amber:hover { background: var(--btn-amber-hover); }
 
         /* ── Alerts ── */
-        .alert { padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 12px; }
-        .alert-error   { background: #2d1117; border: 1px solid #f85149; color: #f85149; }
-        .alert-success { background: #0f2d1c; border: 1px solid #3fb950; color: #3fb950; }
-        .alert-info    { background: #0c1c2e; border: 1px solid #1f6feb; color: #58a6ff; }
+        .alert { padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 14px; }
+        .alert-error   { background: var(--alert-err-bg);  border: 1px solid var(--alert-err-border);  color: var(--alert-err-border); }
+        .alert-success { background: var(--alert-ok-bg);   border: 1px solid var(--alert-ok-border);   color: var(--alert-ok-border); }
+        .alert-info    { background: var(--alert-info-bg); border: 1px solid var(--alert-info-border); color: var(--accent); }
 
         /* ── Item list (broker/portfolio side panel) ── */
         .item-list { margin-bottom: 16px; }
         .item-row {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 7px 0; border-bottom: 1px solid #21262d; font-size: 12px;
+            padding: 7px 0; border-bottom: 1px solid var(--surface-subtle); font-size: 14px;
         }
         .item-row:last-child { border-bottom: none; }
-        .item-name { color: #c9d1d9; }
-        .item-meta { color: #484f58; font-size: 11px; }
-        .empty-msg { color: #484f58; font-size: 11px; font-style: italic; padding: 4px 0 12px; }
+        .item-name { color: var(--text); }
+        .item-meta { color: var(--text-subtle); font-size: 13px; }
+        .empty-msg { color: var(--text-subtle); font-size: 13px; font-style: italic; padding: 4px 0 12px; }
 
-        hr.divider { border: none; border-top: 1px solid #21262d; margin: 14px 0; }
+        hr.divider { border: none; border-top: 1px solid var(--surface-subtle); margin: 14px 0; }
 
         /* ── Ticker search ── */
         .ticker-wrap { position: relative; }
         .ticker-dropdown {
             position: absolute; top: calc(100% + 2px); left: 0;
-            min-width: 280px; background: #1c2128;
-            border: 1px solid #30363d; border-radius: 4px;
+            min-width: 280px; background: var(--surface-hover);
+            border: 1px solid var(--border); border-radius: 4px;
             max-height: 200px; overflow-y: auto; z-index: 200;
         }
         .ticker-opt {
             padding: 7px 12px; cursor: pointer;
-            border-bottom: 1px solid #21262d;
+            border-bottom: 1px solid var(--surface-subtle);
             display: flex; gap: 10px; align-items: baseline;
         }
         .ticker-opt:last-child { border-bottom: none; }
-        .ticker-opt:hover { background: #21262d; }
-        .ticker-sym  { color: #58a6ff; font-weight: bold; font-size: 12px; }
-        .ticker-name { color: #8b949e; font-size: 11px; }
-        .ticker-selected { color: #8b949e; font-size: 11px; padding: 8px 0 0; min-height: 18px; }
-        .ticker-selected.has-value { color: #3fb950; }
+        .ticker-opt:hover { background: var(--surface-subtle); }
+        .ticker-sym  { color: var(--accent); font-weight: bold; font-size: 14px; }
+        .ticker-name { color: var(--text-muted); font-size: 13px; }
+        .ticker-selected { color: var(--text-muted); font-size: 13px; padding: 8px 0 0; min-height: 18px; }
+        .ticker-selected.has-value { color: var(--success); }
 
         /* ── Info lines ── */
-        .info-line { font-size: 11px; padding: 3px 0; min-height: 18px; color: #8b949e; }
-        .info-split { color: #a371f7; }
-        .info-fx    { color: #e3b341; }
-        .fx-arrow { color: #484f58; font-size: 18px; padding-bottom: 2px; align-self: flex-end; }
+        .info-line { font-size: 13px; padding: 3px 0; min-height: 18px; color: var(--text-muted); }
+        .info-split { color: var(--purple); }
+        .info-fx    { color: var(--warning); }
+        .fx-arrow { color: var(--text-subtle); font-size: 22px; padding-bottom: 2px; align-self: flex-end; }
 
         .hidden { display: none !important; }
 
@@ -165,17 +205,17 @@
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         }
         .metric {
-            background: #0d1117; border: 1px solid #21262d; border-radius: 4px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
             padding: 10px 12px;
         }
         .metric-label {
-            color: #8b949e; font-size: 9px; letter-spacing: 1.5px;
+            color: var(--text-muted); font-size: 11px; letter-spacing: 1.5px;
             text-transform: uppercase; margin-bottom: 6px;
         }
-        .metric-value { color: #c9d1d9; font-size: 16px; font-weight: bold; }
-        .metric-value.pos { color: #3fb950; }
-        .metric-value.neg { color: #f85149; }
-        .metric-sub { color: #6e7681; font-size: 10px; margin-top: 3px; }
+        .metric-value { color: var(--text); font-size: 19px; font-weight: bold; }
+        .metric-value.pos { color: var(--success); }
+        .metric-value.neg { color: var(--danger); }
+        .metric-sub { color: var(--text-disabled); font-size: 12px; margin-top: 3px; }
 
         /* ── NAV by broker ── */
         .nav-broker-grid {
@@ -183,66 +223,101 @@
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         }
         .nav-broker {
-            background: #0d1117; border: 1px solid #21262d; border-radius: 4px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
             padding: 9px 12px;
         }
-        .nav-broker-name { color: #58a6ff; font-size: 11px; font-weight: bold; }
-        .nav-broker-val  { color: #c9d1d9; font-size: 14px; margin-top: 4px; font-weight: bold; }
-        .nav-broker-pct  { color: #6e7681; font-size: 10px; margin-top: 2px; }
+        .nav-broker-name { color: var(--accent); font-size: 13px; font-weight: bold; }
+        .nav-broker-val  { color: var(--text); font-size: 16px; margin-top: 4px; font-weight: bold; }
+        .nav-broker-pct  { color: var(--text-disabled); font-size: 12px; margin-top: 2px; }
 
         /* ── Holdings table ── */
         .table-wrap { overflow-x: auto; }
         table.holdings {
-            width: 100%; border-collapse: collapse; font-size: 12px;
+            width: 100%; border-collapse: collapse; font-size: 14px;
         }
         table.holdings th {
-            color: #8b949e; font-size: 10px; letter-spacing: 1px;
+            color: var(--text-muted); font-size: 12px; letter-spacing: 1px;
             text-transform: uppercase; text-align: right;
-            padding: 8px 10px; border-bottom: 1px solid #30363d;
+            padding: 8px 10px; border-bottom: 1px solid var(--border);
             white-space: nowrap; font-weight: normal;
         }
         table.holdings th.l { text-align: left; }
         table.holdings td {
             padding: 8px 10px; text-align: right;
-            border-bottom: 1px solid #21262d; white-space: nowrap;
+            border-bottom: 1px solid var(--surface-subtle); white-space: nowrap;
             font-variant-numeric: tabular-nums;
         }
         table.holdings td.l { text-align: left; }
         table.holdings tr.row { cursor: pointer; }
-        table.holdings tr.row:hover td { background: #1c2128; }
-        table.holdings tr.row.expanded td { background: #1c2128; }
+        table.holdings tr.row:hover td { background: var(--surface-hover); }
+        table.holdings tr.row.expanded td { background: var(--surface-hover); }
         table.holdings tr.sub td {
-            background: #0a0e13 !important; color: #8b949e;
-            font-size: 11px; padding: 5px 10px 5px 24px;
-            border-bottom: 1px solid #161b22;
+            background: var(--surface-subtle) !important; color: var(--text-muted);
+            font-size: 13px; padding: 5px 10px;
+            border-bottom: 1px solid var(--border);
         }
-        table.holdings tr.sub td.l { color: #8b949e; padding-left: 36px; }
+        table.holdings tr.sub td.l { color: var(--text-muted); padding-left: 36px; }
         table.holdings tr.totals td {
-            font-weight: bold; color: #c9d1d9;
-            background: #1c2128; border-top: 2px solid #30363d; border-bottom: none;
+            font-weight: bold; color: var(--text);
+            background: var(--surface-hover); border-top: 2px solid var(--border); border-bottom: none;
         }
-        .ticker-cell  { color: #58a6ff; font-weight: bold; }
+        .ticker-cell  { color: var(--accent); font-weight: bold; }
         .class-pill {
             display: inline-block; padding: 2px 7px; border-radius: 9px;
-            font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
-            background: #21262d; color: #8b949e;
+            font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+            background: var(--surface-subtle); color: var(--text-muted);
         }
-        .class-pill.stock { background: #0c2d6b; color: #79c0ff; }
-        .class-pill.etf   { background: #1c4828; color: #56d364; }
-        .class-pill.cash  { background: #4a3416; color: #e3b341; }
-        .pos { color: #3fb950 !important; }
-        .neg { color: #f85149 !important; }
-        .muted { color: #6e7681; }
+        .class-pill.stock { background: var(--tag-stock-bg); color: var(--tag-stock-text); }
+        .class-pill.etf   { background: var(--tag-etf-bg);   color: var(--tag-etf-text); }
+        .class-pill.cash   { background: var(--tag-cash-bg);  color: var(--tag-cash-text); }
+        .class-pill.option { background: #f3e8ff; color: #7c3aed; }
+        .class-pill.short { background: #fee4e2; color: #b91c1c; margin-left: 4px; }
+        .pos { color: var(--success) !important; }
+        .neg { color: var(--danger)  !important; }
+        .muted { color: var(--text-disabled); }
         .chevron {
-            display: inline-block; width: 10px; color: #6e7681;
+            display: inline-block; width: 10px; color: var(--text-disabled);
             transition: transform 0.15s;
         }
-        .row.expanded .chevron { transform: rotate(90deg); color: #58a6ff; }
+        .row.expanded .chevron { transform: rotate(90deg); color: var(--accent); }
 
         /* ── Action button row above holdings ── */
         .action-row {
             display: flex; gap: 8px; flex-wrap: wrap;
             margin-bottom: 14px;
+        }
+
+        /* ── Performance chart ── */
+        .perf-controls {
+            display: flex; flex-wrap: wrap; gap: 12px;
+            align-items: center; margin-bottom: 16px;
+        }
+        .perf-quick-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .perf-quick-btn {
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-muted); padding: 5px 12px; border-radius: 4px;
+            cursor: pointer; font-family: 'Courier New', monospace; font-size: 12px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .perf-quick-btn:hover { border-color: var(--text-muted); color: var(--text); }
+        .perf-quick-btn.active {
+            border-color: var(--accent); color: var(--accent);
+            background: var(--surface-hover);
+        }
+        .perf-date-inputs {
+            display: flex; gap: 8px; align-items: center; margin-left: auto;
+        }
+        .perf-date-inputs label {
+            color: var(--text-muted); font-size: 11px;
+            letter-spacing: 1px; text-transform: uppercase;
+        }
+        .perf-date-inputs input[type="date"] { width: 145px; height: 30px; }
+        .perf-chart-wrap {
+            position: relative; height: 380px; width: 100%;
+        }
+        .perf-empty {
+            color: var(--text-subtle); font-size: 13px; font-style: italic;
+            text-align: center; padding: 60px 0;
         }
     </style>
 </head>
@@ -285,12 +360,13 @@
                 <span class="tb-label">Portfolio</span>
                 <select id="active-portfolio" class="tb-select" onchange="onActivePortfolioChange()"></select>
                 <button class="btn-ghost" id="btn-refresh" onclick="loadAndRender()" title="Reload data">↻</button>
-                <button class="btn-ghost" id="btn-recalc-cur" onclick="recalcCurrent()" title="Recalc this portfolio via GitHub Actions">↻ Recalc</button>
+                <button class="btn-ghost" id="btn-recalc-cur" onclick="recalcCurrent()" title="Rebuild daily stats from transactions">↻ Recalc</button>
             </div>
             <div class="toolbar-right">
                 <button class="btn-ghost" onclick="togglePanel('panel-portfolio')">+ Portfolio</button>
                 <button class="btn-ghost" onclick="togglePanel('panel-broker')">+ Broker</button>
                 <button class="btn-ghost" onclick="togglePanel('panel-txn')">+ Txn</button>
+                <button class="btn-ghost" onclick="togglePanel('panel-option')">+ Option</button>
                 <button class="btn-ghost" onclick="togglePanel('panel-cash')">Cash</button>
                 <button class="btn-ghost" onclick="togglePanel('panel-fx')">FX</button>
             </div>
@@ -306,10 +382,38 @@
             </div>
             <div class="metrics" id="metrics-grid"></div>
             <div id="nav-broker-section" class="hidden">
-                <div style="margin-top:18px;color:#8b949e;font-size:10px;letter-spacing:1.5px;text-transform:uppercase">
+                <div style="margin-top:18px;color:#57606a;font-size:12px;letter-spacing:1.5px;text-transform:uppercase">
                     NAV by Broker
                 </div>
                 <div class="nav-broker-grid" id="nav-broker-grid"></div>
+            </div>
+        </div>
+
+        <!-- ── Performance Chart ── -->
+        <div class="card" id="performance-card">
+            <div class="card-title">
+                Performance
+                <span class="title-meta" id="perf-meta"></span>
+            </div>
+            <div class="perf-controls">
+                <div class="perf-quick-btns" id="perf-range-btns">
+                    <button class="perf-quick-btn" data-range="MTD" onclick="setPerfRange('MTD')">MTD</button>
+                    <button class="perf-quick-btn active" data-range="YTD" onclick="setPerfRange('YTD')">YTD</button>
+                    <button class="perf-quick-btn" data-range="1M" onclick="setPerfRange('1M')">1M</button>
+                    <button class="perf-quick-btn" data-range="3M" onclick="setPerfRange('3M')">3M</button>
+                    <button class="perf-quick-btn" data-range="1Y" onclick="setPerfRange('1Y')">1Y</button>
+                    <button class="perf-quick-btn" data-range="ALL" onclick="setPerfRange('ALL')">ALL</button>
+                </div>
+                <div class="perf-date-inputs">
+                    <label>From</label>
+                    <input type="date" id="perf-start-date" onchange="onPerfDateChange()">
+                    <label>To</label>
+                    <input type="date" id="perf-end-date" onchange="onPerfDateChange()">
+                </div>
+            </div>
+            <div class="perf-chart-wrap">
+                <canvas id="perf-chart"></canvas>
+                <div class="perf-empty hidden" id="perf-empty">No data for selected range</div>
             </div>
         </div>
 
@@ -430,11 +534,14 @@
                 </div>
                 <div class="form-group">
                     <label>Type</label>
-                    <select id="t-type" style="width:120px" onchange="onTypeChange()">
+                    <select id="t-type" style="width:130px" onchange="onTypeChange()">
                         <option value="buy">Buy</option>
                         <option value="sell">Sell</option>
                         <option value="dividend">Dividend</option>
                         <option value="split">Split</option>
+                        <option value="exercise">Exercise</option>
+                        <option value="assignment">Assignment</option>
+                        <option value="expiration">Expiration</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -503,6 +610,45 @@
 
             <div style="margin-top:6px">
                 <button class="btn" onclick="submitTxn()">Submit Transaction</button>
+            </div>
+        </div>
+
+        <!-- ── Collapsible: Create Option Product ── -->
+        <div class="card hidden" id="panel-option">
+            <div class="card-title">Create Option Contract</div>
+            <div id="option-msg"></div>
+            <div class="form-row">
+                <div class="form-group ticker-wrap">
+                    <label>Underlying Ticker</label>
+                    <input type="text" id="opt-underlying" placeholder="Search underlying…" autocomplete="off"
+                           oninput="onOptUnderlyingInput()" style="width:200px">
+                    <div class="ticker-dropdown hidden" id="opt-underlying-dd"></div>
+                </div>
+                <div class="form-group">
+                    <div class="ticker-selected" id="opt-underlying-selected">No underlying selected</div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Option Type</label>
+                    <select id="opt-type" style="width:100px" onchange="updateOptTicker()">
+                        <option value="call">Call</option>
+                        <option value="put">Put</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Strike Price</label>
+                    <input type="number" id="opt-strike" placeholder="0.00" min="0" step="any" style="width:120px"
+                           oninput="updateOptTicker()">
+                </div>
+                <div class="form-group">
+                    <label>Expiration Date</label>
+                    <input type="date" id="opt-expiry" style="width:145px" onchange="updateOptTicker()">
+                </div>
+            </div>
+            <div class="info-line" id="opt-ticker-preview" style="margin-bottom:6px"></div>
+            <div style="margin-top:6px">
+                <button class="btn" onclick="createOptionProduct()">Create Option</button>
             </div>
         </div>
 
@@ -625,6 +771,7 @@ const TXN_SIGN = {
     buy: +1, sell: -1, deposit: +1, withdrawal: -1,
     dividend: +1, interest: +1, fee: -1, tax: -1,
     exchange: +1, split: +1,
+    exercise: -1, assignment: -1, expiration: -1,
 };
 const VENDOR_YAHOO = 3;
 
@@ -785,6 +932,7 @@ async function loadAndRender() {
         viewData = await fetchViewData(currentPortfolioId);
         renderOverview();
         renderHoldings();
+        renderPerformance();
     } catch (e) {
         console.error(e);
         showMsg('stats-msg', `Failed to load holdings: ${e.message}`, 'error');
@@ -843,14 +991,26 @@ async function fetchViewData(portfolioId) {
         fxSeries.get(k).push({ date: r.rate_date, rate: +r.rate });
     }
 
-    // 5. Last 2 daily_portfolio_stats rows for daily P&L
-    const { data: statsLast2 } = await sb.from('daily_portfolio_stats')
+    // 5. Full daily_portfolio_stats history (asc) for chart + YTD/MTD calc.
+    //    `statsLast2` is preserved (desc, length 2) for the Last-Day-P&L tile.
+    const { data: statsAsc } = await sb.from('daily_portfolio_stats')
         .select('stat_date, market_value, cash_balance, total_nav, net_flows, daily_pnl, daily_return')
         .eq('portfolio_id', portfolioId)
-        .order('stat_date', { ascending: false })
-        .limit(2);
+        .order('stat_date', { ascending: true });
+    const statsAll   = statsAsc || [];
+    const statsLast2 = statsAll.slice(-2).reverse();
 
-    return { txns: txns || [], products, latestQuotes, fxSeries, statsLast2: statsLast2 || [] };
+    // 6. Option details for option products
+    const optionPids = products.filter(p => p.asset_class === 'option').map(p => p.id);
+    let optionMap = new Map();
+    if (optionPids.length) {
+        const { data: od } = await sb.from('option_details')
+            .select('product_id, option_type, strike_price, expiration_date, underlying_product_id, contract_multiplier')
+            .in('product_id', optionPids);
+        if (od) optionMap = new Map(od.map(o => [o.product_id, o]));
+    }
+
+    return { txns: txns || [], products, latestQuotes, fxSeries, statsLast2, statsAll, optionMap };
 }
 
 // ─── FX helpers ──────────────────────────────────────────────────────────────
@@ -943,19 +1103,58 @@ function buildPositions(txns, products) {
         } else {
             switch (type) {
                 case 'buy': {
-                    const cashAdded = qty * price + comm;     // in local ccy
-                    pos.qty       += qty;
-                    pos.costLocal += cashAdded;
-                    pos.costUSD   += cashAdded * fxAtTxn;     // lock USD cost
+                    // For a long: cashAdded is positive cost basis added.
+                    // For covering a short: we use the existing avg short basis
+                    //   (mirror of selling a long); realized P&L flows through cash.
+                    const cashAdded = qty * price + comm;     // local ccy
+                    if (pos.qty < 0) {
+                        const coverQty = Math.min(qty, -pos.qty);
+                        const avgLocal = pos.costLocal / pos.qty;   // signed
+                        const avgUSD   = pos.costUSD   / pos.qty;
+                        pos.qty       += coverQty;
+                        pos.costLocal += avgLocal * coverQty;
+                        pos.costUSD   += avgUSD   * coverQty;
+                        // If the buy exceeds the short, the remainder opens a long
+                        // (commission/cost pro-rated by share count).
+                        const longQty = qty - coverQty;
+                        if (longQty > 0) {
+                            const longCash = cashAdded * (longQty / qty);
+                            pos.qty       += longQty;
+                            pos.costLocal += longCash;
+                            pos.costUSD   += longCash * fxAtTxn;
+                        }
+                    } else {
+                        pos.qty       += qty;
+                        pos.costLocal += cashAdded;
+                        pos.costUSD   += cashAdded * fxAtTxn;     // lock USD cost
+                    }
                     break;
                 }
                 case 'sell': {
+                    // For closing a long: existing weighted-avg basis logic.
+                    // For opening/extending a short: stock qty goes negative and
+                    //   cost basis is the **net proceeds received** (negative number),
+                    //   locked in USD at the txn date FX.
+                    const proceeds = qty * price - comm;          // net received, local
                     if (pos.qty > 0) {
+                        const closeQty = Math.min(qty, pos.qty);
                         const avgLocal = pos.costLocal / pos.qty;
                         const avgUSD   = pos.costUSD   / pos.qty;
+                        pos.qty       -= closeQty;
+                        pos.costLocal -= avgLocal * closeQty;
+                        pos.costUSD   -= avgUSD   * closeQty;
+                        // If the sell exceeds the long, the remainder opens a short.
+                        const shortQty = qty - closeQty;
+                        if (shortQty > 0) {
+                            const shortProceeds = proceeds * (shortQty / qty);
+                            pos.qty       -= shortQty;
+                            pos.costLocal -= shortProceeds;
+                            pos.costUSD   -= shortProceeds * fxAtTxn;
+                        }
+                    } else {
                         pos.qty       -= qty;
-                        pos.costLocal -= avgLocal * qty;
-                        pos.costUSD   -= avgUSD   * qty;
+                        pos.costLocal -= proceeds;
+                        pos.costUSD   -= proceeds * fxAtTxn;
                     }
                     break;
                 }
@@ -963,6 +1162,22 @@ function buildPositions(txns, products) {
                     // Extra shares; cost basis (local & USD) unchanged.
                     pos.qty += qty;
                     break;
+                case 'exercise':
+                case 'assignment':
+                case 'expiration': {
+                    // Reduce position toward zero, preserving avg cost
+                    if (Math.abs(pos.qty) > 1e-9) {
+                        const absQty = Math.abs(pos.qty);
+                        const removeQty = Math.min(qty, absQty);
+                        const avgLocal = pos.costLocal / pos.qty;
+                        const avgUSD   = pos.costUSD   / pos.qty;
+                        const direction = Math.sign(pos.qty);
+                        pos.qty       -= direction * removeQty;
+                        pos.costLocal -= avgLocal * removeQty;
+                        pos.costUSD   -= avgUSD   * removeQty;
+                    }
+                    break;
+                }
                 // dividend/interest/fee/tax recorded on cash product, not on stock
             }
         }
@@ -996,8 +1211,8 @@ function aggregateByProduct(positions) {
             qty: pos.qty,
             costLocal: pos.costLocal,
             costUSD: pos.costUSD,
-            avgCostLocal: pos.qty > 0 ? pos.costLocal / pos.qty : 0,
-            avgCostUSD:   pos.qty > 0 ? pos.costUSD   / pos.qty : 0,
+            avgCostLocal: Math.abs(pos.qty) > 1e-9 ? pos.costLocal / pos.qty : 0,
+            avgCostUSD:   Math.abs(pos.qty) > 1e-9 ? pos.costUSD   / pos.qty : 0,
         });
     }
     return [...byProduct.values()];
@@ -1043,6 +1258,9 @@ function renderEmpty() {
     document.getElementById('holdings-body').innerHTML = '';
     document.getElementById('overview-meta').textContent = '';
     document.getElementById('holdings-meta').textContent = '';
+    document.getElementById('perf-meta').textContent = '';
+    if (perfChart) { perfChart.destroy(); perfChart = null; }
+    document.getElementById('perf-empty').classList.remove('hidden');
     show('holdings-empty');
     hide('nav-broker-section');
 }
@@ -1069,7 +1287,8 @@ function renderOverview() {
         } else {
             const q = viewData.latestQuotes.get(a.product_id);
             if (!q) { missingPrice++; continue; }
-            mvUSD   += a.qty * q.close * fx;
+            const mult = viewData.optionMap.get(a.product_id)?.contract_multiplier || 1;
+            mvUSD   += a.qty * q.close * mult * fx;
         }
     }
     const navUSD = mvUSD + cashUSD;
@@ -1093,6 +1312,11 @@ function renderOverview() {
     const totalPnlPct = externalUSD ? (totalPnl / externalUSD) : 0;
     const cashToNav   = navUSD ? (cashUSD / navUSD) : 0;
 
+    // YTD / MTD cumulative returns from daily_portfolio_stats.daily_return
+    // (TWR: chain (1 + r_d) over the period).
+    const ytdRet = cumReturnFrom(viewData.statsAll, ytdStartDate());
+    const mtdRet = cumReturnFrom(viewData.statsAll, mtdStartDate());
+
     const tiles = [
         { label: 'NAV (USD)', value: '$' + fmt.money(navUSD),
           sub: usdToHkd ? `≈ ${fmt.money(navUSD * usdToHkd)} HKD` : '' },
@@ -1114,6 +1338,14 @@ function renderOverview() {
         { label: 'Last Day Return',
           value: lastRet == null ? '—' : fmt.pctRaw(lastRet * 100),
           cls: lastRet == null ? '' : sign(lastRet) },
+        { label: 'MTD Return',
+          value: mtdRet == null ? '—' : fmt.pctRaw(mtdRet * 100),
+          cls: mtdRet == null ? '' : sign(mtdRet),
+          sub: 'month-to-date' },
+        { label: 'YTD Return',
+          value: ytdRet == null ? '—' : fmt.pctRaw(ytdRet * 100),
+          cls: ytdRet == null ? '' : sign(ytdRet),
+          sub: 'year-to-date' },
         { label: 'Market Value (USD)', value: '$' + fmt.money(mvUSD), sub: '' },
         { label: 'Cash Balance (USD)', value: '$' + fmt.money(cashUSD), sub: '',
           expandable: true, onClick: 'toggleCashBreakdown()' },
@@ -1163,7 +1395,8 @@ function renderOverview() {
         for (const acct of a.accounts) {
             const value = a.product.asset_class === 'cash'
                 ? acct.qty * fx
-                : (viewData.latestQuotes.get(a.product_id)?.close || 0) * acct.qty * fx;
+                : (viewData.latestQuotes.get(a.product_id)?.close || 0) * acct.qty
+                  * (viewData.optionMap.get(a.product_id)?.contract_multiplier || 1) * fx;
             navByBroker.set(acct.broker_name,
                 (navByBroker.get(acct.broker_name) || 0) + value);
         }
@@ -1197,6 +1430,190 @@ function toggleCashBreakdown() {
     if (el) el.classList.toggle('hidden');
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  Performance — YTD/MTD computation + NAV/return chart
+// ═════════════════════════════════════════════════════════════════════════════
+
+let perfChart = null;
+let currentPerfRange = 'YTD';
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const ytdStartDate = () => `${new Date().getFullYear()}-01-01`;
+const mtdStartDate = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
+// Cumulative return from `startDate` (inclusive) onward by chaining (1 + r_d).
+// Returns null if there are no stats in the period.
+function cumReturnFrom(stats, startDate) {
+    if (!stats || !stats.length) return null;
+    const slice = stats.filter(s => s.stat_date >= startDate);
+    if (!slice.length) return null;
+    let cum = 1;
+    for (const s of slice) {
+        const r = Number(s.daily_return);
+        if (Number.isFinite(r)) cum *= (1 + r);
+    }
+    return cum - 1;
+}
+
+// Resolve a quick-range key to [startDate, endDate] using available stats.
+function getRangeDates(range, stats) {
+    if (!stats || !stats.length) return [null, null];
+    const lastDate = stats[stats.length - 1].stat_date;
+    const firstDate = stats[0].stat_date;
+    const last = new Date(lastDate + 'T00:00:00');
+    let start;
+    switch (range) {
+        case 'MTD': start = new Date(last.getFullYear(), last.getMonth(), 1); break;
+        case 'YTD': start = new Date(last.getFullYear(), 0, 1); break;
+        case '1M':  start = new Date(last); start.setMonth(start.getMonth() - 1); break;
+        case '3M':  start = new Date(last); start.setMonth(start.getMonth() - 3); break;
+        case '1Y':  start = new Date(last); start.setFullYear(start.getFullYear() - 1); break;
+        case 'ALL':
+        default:    return [firstDate, lastDate];
+    }
+    const startISO = start.toISOString().slice(0, 10);
+    return [startISO < firstDate ? firstDate : startISO, lastDate];
+}
+
+function setPerfRange(range) {
+    currentPerfRange = range;
+    document.querySelectorAll('.perf-quick-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.range === range));
+    if (!viewData) return;
+    const [start, end] = getRangeDates(range, viewData.statsAll);
+    document.getElementById('perf-start-date').value = start || '';
+    document.getElementById('perf-end-date').value   = end   || '';
+    renderPerfChart(start, end);
+}
+
+function onPerfDateChange() {
+    const start = document.getElementById('perf-start-date').value;
+    const end   = document.getElementById('perf-end-date').value;
+    // Custom range — clear preset highlight
+    document.querySelectorAll('.perf-quick-btn').forEach(b => b.classList.remove('active'));
+    currentPerfRange = 'CUSTOM';
+    if (!start || !end || start > end) return;
+    renderPerfChart(start, end);
+}
+
+function renderPerformance() {
+    if (!viewData || !viewData.statsAll || !viewData.statsAll.length) {
+        if (perfChart) { perfChart.destroy(); perfChart = null; }
+        document.getElementById('perf-empty').classList.remove('hidden');
+        document.getElementById('perf-meta').textContent = 'no daily stats yet';
+        return;
+    }
+    const [start, end] = getRangeDates(currentPerfRange, viewData.statsAll);
+    document.getElementById('perf-start-date').value = start || '';
+    document.getElementById('perf-end-date').value   = end   || '';
+    renderPerfChart(start, end);
+}
+
+function renderPerfChart(startDate, endDate) {
+    const emptyEl = document.getElementById('perf-empty');
+    if (!viewData || !viewData.statsAll || !startDate || !endDate) {
+        if (perfChart) { perfChart.destroy(); perfChart = null; }
+        emptyEl.classList.remove('hidden');
+        return;
+    }
+    const filtered = viewData.statsAll.filter(s =>
+        s.stat_date >= startDate && s.stat_date <= endDate);
+
+    if (!filtered.length) {
+        if (perfChart) { perfChart.destroy(); perfChart = null; }
+        emptyEl.classList.remove('hidden');
+        document.getElementById('perf-meta').textContent =
+            `${startDate} → ${endDate} · 0 days`;
+        return;
+    }
+    emptyEl.classList.add('hidden');
+
+    const labels    = filtered.map(s => s.stat_date);
+    const navSeries = filtered.map(s => Number(s.total_nav));
+
+    // Cumulative return rebased to 0% at the first day of the window
+    const cumReturnSeries = [0];
+    let cum = 1;
+    for (let i = 1; i < filtered.length; i++) {
+        const r = Number(filtered[i].daily_return);
+        cum *= (1 + (Number.isFinite(r) ? r : 0));
+        cumReturnSeries.push((cum - 1) * 100);
+    }
+
+    const lastRet = cumReturnSeries[cumReturnSeries.length - 1];
+    document.getElementById('perf-meta').textContent =
+        `${labels[0]} → ${labels[labels.length - 1]} · ${labels.length} days · cum return ${lastRet >= 0 ? '+' : ''}${lastRet.toFixed(2)}%`;
+
+    if (perfChart) perfChart.destroy();
+    const ctx = document.getElementById('perf-chart').getContext('2d');
+    perfChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'NAV',
+                data: navSeries,
+                borderColor: '#0969da',
+                backgroundColor: 'rgba(9,105,218,0.10)',
+                fill: true,
+                tension: 0.15,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#ffffff',
+                    titleColor: '#1f2328',
+                    bodyColor: '#1f2328',
+                    borderColor: '#d0d7de',
+                    borderWidth: 1,
+                    titleFont: { family: 'Courier New', size: 12 },
+                    bodyFont:  { family: 'Courier New', size: 12 },
+                    callbacks: {
+                        label: (c) => {
+                            const ret = cumReturnSeries[c.dataIndex];
+                            return [
+                                `NAV:    $${fmt.money(c.parsed.y)}`,
+                                `Return: ${ret >= 0 ? '+' : ''}${ret.toFixed(2)}%`,
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        font: { family: 'Courier New', size: 11 },
+                        color: '#57606a',
+                        maxTicksLimit: 10,
+                        maxRotation: 0,
+                    },
+                    grid: { color: '#eaeef2' }
+                },
+                y: {
+                    type: 'linear', position: 'left',
+                    title: { display: true, text: 'NAV (USD)', font: { family: 'Courier New', size: 12 }, color: '#0969da' },
+                    ticks: {
+                        font: { family: 'Courier New', size: 11 }, color: '#57606a',
+                        callback: v => '$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(1) + 'k' : v.toFixed(0)),
+                    },
+                    grid: { color: '#eaeef2' }
+                }
+            }
+        }
+    });
+}
+
 function renderHoldings() {
     const positions  = buildPositions(viewData.txns, viewData.products);
     const aggregated = aggregateByProduct(positions);
@@ -1220,10 +1637,11 @@ function renderHoldings() {
         const isCash = a.product.asset_class === 'cash';
         const mktPriceLocal = isCash ? 1
             : (viewData.latestQuotes.get(a.product_id)?.close ?? null);
-        const avgCostLocal  = a.qty > 0 ? a.costLocal / a.qty : 0;
-        const avgCostUSD    = a.qty > 0 ? a.costUSD   / a.qty : 0;
+        const avgCostLocal  = Math.abs(a.qty) > 1e-9 ? a.costLocal / a.qty : 0;
+        const avgCostUSD    = Math.abs(a.qty) > 1e-9 ? a.costUSD   / a.qty : 0;
+        const mult          = viewData.optionMap.get(a.product_id)?.contract_multiplier || 1;
         const mvUSD         = (mktPriceLocal != null && fx != null)
-            ? a.qty * mktPriceLocal * fx : null;
+            ? a.qty * mktPriceLocal * mult * fx : null;
         const principalUSD  = a.costUSD;        // LOCKED at txn-date FX
         const unrealizedUSD = (mvUSD != null) ? mvUSD - principalUSD : null;
         const unrealizedPct = (unrealizedUSD != null && Math.abs(principalUSD) > 1e-9)
@@ -1258,10 +1676,14 @@ function renderHoldings() {
         const mktPriceCell = r.mktPriceLocal != null ? fmt.price(r.mktPriceLocal) : '—';
 
         const rowId = `row-${i}`;
+        const od = viewData.optionMap.get(a.product_id);
+        const optLabel = od
+            ? ` <span style="font-size:11px;color:var(--text-muted)">${od.option_type.toUpperCase()} $${od.strike_price} ${od.expiration_date}</span>`
+            : '';
         html += `
             <tr class="row" id="${rowId}" onclick="toggleRow('${rowId}')">
-                <td class="l"><span class="chevron">${isMulti ? '▶' : ' '}</span> <span class="ticker-cell">${a.product.ticker}</span></td>
-                <td class="l"><span class="class-pill ${a.product.asset_class}">${a.product.asset_class}</span></td>
+                <td class="l"><span class="chevron">${isMulti ? '▶' : ' '}</span> <span class="ticker-cell">${a.product.ticker}</span>${optLabel}</td>
+                <td class="l"><span class="class-pill ${a.product.asset_class}">${a.product.asset_class}</span>${a.qty < 0 ? '<span class="class-pill short">SHORT</span>' : ''}</td>
                 <td>${r.ccy}</td>
                 <td>${fmt.qty(a.qty)}</td>
                 <td>${r.isCash ? '1.00' : fmt.price(r.avgCostLocal)}</td>
@@ -1279,7 +1701,7 @@ function renderHoldings() {
         if (isMulti) {
             for (const acct of a.accounts) {
                 const acctMV   = (r.mktPriceLocal != null && r.fx != null)
-                    ? acct.qty * r.mktPriceLocal * r.fx : null;
+                    ? acct.qty * r.mktPriceLocal * (viewData.optionMap.get(a.product_id)?.contract_multiplier || 1) * r.fx : null;
                 const acctPrin = acct.costUSD;       // LOCKED per-account share of cost basis
                 const acctPnl  = (acctMV != null) ? acctMV - acctPrin : null;
                 const acctPnlPct = (acctPnl != null && Math.abs(acctPrin) > 1e-9)
@@ -1381,76 +1803,35 @@ async function addPortfolio() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  Recalc current portfolio (workflow_dispatch)
+//  Recalc current portfolio (Supabase RPC — runs in-database)
 // ═════════════════════════════════════════════════════════════════════════════
-const GH_OWNER     = 'AndyGE44';
-const GH_REPO      = 'Portfolio_Mangement';
-const GH_WORKFLOW  = 'recalc_portfolio.yml';
-const GH_BRANCH    = 'main';
-const GH_RUNS_URL  = `https://github.com/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}`;
-
-function getGhPat() {
-    let pat = localStorage.getItem('gh_pat');
-    if (!pat) {
-        pat = prompt(
-            "Paste a GitHub fine-grained PAT with 'Actions: Read and write' " +
-            `scope on ${GH_OWNER}/${GH_REPO}. Stored only in this browser.`
-        );
-        if (!pat) return null;
-        localStorage.setItem('gh_pat', pat.trim());
-    }
-    return pat.trim();
-}
-
 async function recalcCurrent() {
     if (!currentPortfolioId) {
         showMsg('stats-msg', 'No portfolio selected.', 'error'); return;
     }
     const port = portfolios.find(p => p.id === currentPortfolioId);
     const portName = port?.name || `#${currentPortfolioId}`;
-    const pat = getGhPat();
-    if (!pat) { showMsg('stats-msg', 'PAT required to trigger recalc.', 'error'); return; }
 
     const btn = document.getElementById('btn-recalc-cur');
     btn.disabled = true;
-    showMsg('stats-msg', `Triggering full recalc for "${portName}"…`, 'info');
+    showMsg('stats-msg', `Rebuilding stats for "${portName}"…`, 'info');
 
-    const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`;
-    let resp;
     try {
-        resp = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${pat}`,
-                'Accept':        'application/vnd.github+json',
-                'X-GitHub-Api-Version': '2022-11-28',
-            },
-            body: JSON.stringify({
-                ref: GH_BRANCH,
-                inputs: { portfolio_id: String(currentPortfolioId), mode: 'full' },
-            }),
+        const { data, error } = await sb.rpc('rebuild_portfolio_stats', {
+            p_portfolio_id: currentPortfolioId,
         });
+        btn.disabled = false;
+        if (error) {
+            showMsg('stats-msg', `Recalc failed: ${error.message}`, 'error');
+            return;
+        }
+        showMsg('stats-msg', `Rebuilt ${data} day(s) for "${portName}". Refreshing…`, 'success');
+        await loadAndRender();
+        clearMsgAfter('stats-msg', 5000);
     } catch (e) {
         btn.disabled = false;
-        showMsg('stats-msg', `Network error: ${e.message}`, 'error'); return;
+        showMsg('stats-msg', `Error: ${e.message}`, 'error');
     }
-    btn.disabled = false;
-
-    if (resp.status === 401 || resp.status === 403) {
-        localStorage.removeItem('gh_pat');
-        showMsg('stats-msg', 'GitHub rejected the PAT (cleared). Click Recalc again to re-enter.', 'error');
-        return;
-    }
-    if (!resp.ok) {
-        const txt = await resp.text();
-        showMsg('stats-msg', `GitHub API ${resp.status}: ${txt}`, 'error');
-        return;
-    }
-    showMsg('stats-msg',
-        `Recalc queued for "${portName}". Track progress: ` +
-        `<a href="${GH_RUNS_URL}" target="_blank" rel="noopener" style="color:#58a6ff">Actions →</a>`,
-        'success');
-    clearMsgAfter('stats-msg', 8000);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1601,18 +1982,26 @@ function onTickerInput() {
 }
 
 async function fetchTickers(q) {
-    const { data } = await sb.from('products')
-        .select('id, ticker, name, base_currency')
+    const type = document.getElementById('t-type').value;
+    const isOptLife = ['exercise','assignment','expiration'].includes(type);
+    let query = sb.from('products')
+        .select('id, ticker, name, base_currency, asset_class')
         .eq('is_active', true)
-        .neq('asset_class', 'cash')
         .or(`ticker.ilike.${q}%,name.ilike.%${q}%`)
         .order('ticker').limit(10);
+    if (isOptLife) {
+        query = query.eq('asset_class', 'option');
+    } else {
+        query = query.neq('asset_class', 'cash');
+    }
+    const { data } = await query;
     const dd = document.getElementById('ticker-dd');
     if (!data?.length) { dd.classList.add('hidden'); return; }
     dd.innerHTML = data.map(p => {
         const safe = JSON.stringify(p).replace(/'/g, "\\'");
+        const pill = p.asset_class === 'option' ? ' <span class="class-pill option" style="font-size:9px">OPT</span>' : '';
         return `<div class="ticker-opt" onclick='pickTicker(${safe})'>
-            <span class="ticker-sym">${p.ticker}</span>
+            <span class="ticker-sym">${p.ticker}${pill}</span>
             <span class="ticker-name">${p.name || ''}</span>
         </div>`;
     }).join('');
@@ -1639,15 +2028,22 @@ function onTypeChange() {
     const isBuySell  = type === 'buy' || type === 'sell';
     const isDividend = type === 'dividend';
     const isSplit    = type === 'split';
+    const isOptLife  = type === 'exercise' || type === 'assignment' || type === 'expiration';
 
-    toggle('row-ticker',   isBuySell || isSplit);
-    toggle('row-buysell',  isBuySell);
+    toggle('row-ticker',   isBuySell || isSplit || isOptLife);
+    toggle('row-buysell',  isBuySell || (isOptLife && type !== 'expiration'));
     toggle('buysell-hint', isBuySell);
     toggle('row-dividend', isDividend);
     toggle('row-split',    isSplit);
     toggle('split-info',   isSplit);
 
-    if (!isBuySell && !isSplit) {
+    // For exercise/assignment: qty = contracts, price is ignored (strike is used)
+    if (isOptLife && type !== 'expiration') {
+        document.querySelector('#row-buysell label:first-of-type')?.closest('.form-group')
+            ?.querySelector('label')?.replaceWith(Object.assign(document.createElement('label'), { textContent: 'Contracts' }));
+    }
+
+    if (!isBuySell && !isSplit && !isOptLife) {
         pickedProduct = null;
         document.getElementById('t-ticker').value = '';
         document.getElementById('ticker-selected').textContent = 'No ticker selected';
@@ -1724,7 +2120,13 @@ async function submitTxn() {
         const commission = parseFloat(document.getElementById('t-commission').value) || 0;
         if (!qty || !price) { showMsg('txn-msg', 'Quantity and price are required.', 'error'); return; }
 
-        const gross  = qty * price;
+        // For options, notional = contracts × premium × multiplier (typically 100 for equity options).
+        // The option leg keeps quantity=contracts and price=premium-per-share, but net_amount_local
+        // and the auto-cash-leg use the multiplied notional.
+        const mult   = pickedProduct.asset_class === 'option'
+            ? (viewData.optionMap.get(pickedProduct.id)?.contract_multiplier || 1)
+            : 1;
+        const gross  = qty * price * mult;
         const net    = type === 'buy' ? gross + commission : gross - commission;
         const cashId = cashProducts[pickedProduct.base_currency];
 
@@ -1758,13 +2160,69 @@ async function submitTxn() {
         rows.push({ ...base, transaction_type: 'split',
             product_id: pickedProduct.id, quantity: splitExtra,
             price_local: 0, net_amount_local: 0 });
+
+    } else if (type === 'exercise' || type === 'assignment') {
+        // Exercise / assignment: close option position + create stock leg + cash leg
+        if (!pickedProduct) { showMsg('txn-msg', 'Select an option contract.', 'error'); return; }
+        const qty = parseFloat(document.getElementById('t-qty').value);
+        if (!qty) { showMsg('txn-msg', 'Number of contracts is required.', 'error'); return; }
+
+        // Look up option details
+        const od = viewData.optionMap.get(pickedProduct.id);
+        if (!od) { showMsg('txn-msg', 'Option details not found. Create the option first.', 'error'); return; }
+
+        const mult   = od.contract_multiplier;
+        const strike = +od.strike_price;
+        const shares = qty * mult;
+        const cashAmt = shares * strike;
+        const cashId  = cashProducts[pickedProduct.base_currency];
+
+        // 1. Close option position
+        rows.push({ ...base, transaction_type: type,
+            product_id: pickedProduct.id, quantity: qty,
+            price_local: 0, net_amount_local: 0 });
+
+        // 2. Stock leg: exercise call → buy underlying; exercise put → sell underlying
+        //    Assignment is the mirror: assigned call → sell; assigned put → buy
+        const isCall = od.option_type === 'call';
+        let stockAction;
+        if (type === 'exercise') stockAction = isCall ? 'buy' : 'sell';
+        else /* assignment */    stockAction = isCall ? 'sell' : 'buy';
+
+        rows.push({ ...base, transaction_type: stockAction,
+            product_id: od.underlying_product_id, quantity: shares,
+            price_local: strike, net_amount_local: cashAmt });
+
+        // 3. Cash leg
+        if (cashId) {
+            const cashAction = stockAction === 'buy' ? 'sell' : 'buy';
+            rows.push({ ...base, transaction_type: cashAction,
+                product_id: cashId, quantity: cashAmt,
+                price_local: 1, net_amount_local: cashAmt });
+        }
+
+    } else if (type === 'expiration') {
+        if (!pickedProduct) { showMsg('txn-msg', 'Select an option contract.', 'error'); return; }
+        // Look up current holding qty for this option
+        const { data: holdingData } = await sb.from('portfolio_holdings')
+            .select('quantity')
+            .eq('portfolio_id', portfolioId)
+            .eq('product_id', pickedProduct.id)
+            .eq('user_broker_id', brokerId)
+            .maybeSingle();
+        const holdQty = Math.abs(parseFloat(holdingData?.quantity || 0));
+        if (holdQty === 0) { showMsg('txn-msg', 'No open position for this option.', 'error'); return; }
+        rows.push({ ...base, transaction_type: 'expiration',
+            product_id: pickedProduct.id, quantity: holdQty,
+            price_local: 0, net_amount_local: 0 });
     }
 
     const { error } = await sb.from('transactions').insert(rows);
     if (error) { showMsg('txn-msg', error.message, 'error'); return; }
 
-    const labels = { buy: 'Buy', sell: 'Sell', dividend: 'Dividend', split: 'Split' };
-    const extra  = rows.length > 1 ? ' (+ cash leg auto-recorded)' : '';
+    const labels = { buy: 'Buy', sell: 'Sell', dividend: 'Dividend', split: 'Split',
+        exercise: 'Exercise', assignment: 'Assignment', expiration: 'Expiration' };
+    const extra  = rows.length > 1 ? ` (+ ${rows.length - 1} auto-leg${rows.length > 2 ? 's' : ''})` : '';
     showMsg('txn-msg', `${labels[type]} recorded${extra}`, 'success');
     resetTxnForm();
     if (portfolioId === currentPortfolioId) await loadAndRender();
@@ -1779,6 +2237,131 @@ function resetTxnForm() {
     document.getElementById('ticker-selected').classList.remove('has-value');
     document.getElementById('split-info').textContent  = '';
     document.getElementById('buysell-hint').textContent = '';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Create Option Product
+// ═════════════════════════════════════════════════════════════════════════════
+let optUnderlying = null;
+let optTickerTimer = null;
+
+function onOptUnderlyingInput() {
+    clearTimeout(optTickerTimer);
+    const q = document.getElementById('opt-underlying').value.trim();
+    if (q.length < 1) { hide('opt-underlying-dd'); return; }
+    optTickerTimer = setTimeout(() => fetchOptUnderlying(q), 220);
+}
+
+async function fetchOptUnderlying(q) {
+    const { data } = await sb.from('products')
+        .select('id, ticker, name, base_currency, asset_class')
+        .eq('is_active', true)
+        .in('asset_class', ['stock', 'etf'])
+        .or(`ticker.ilike.${q}%,name.ilike.%${q}%`)
+        .order('ticker').limit(10);
+    const dd = document.getElementById('opt-underlying-dd');
+    if (!data?.length) { dd.classList.add('hidden'); return; }
+    dd.innerHTML = data.map(p => {
+        const safe = JSON.stringify(p).replace(/'/g, "\\'");
+        return `<div class="ticker-opt" onclick='pickOptUnderlying(${safe})'>
+            <span class="ticker-sym">${p.ticker}</span>
+            <span class="ticker-name">${p.name || ''}</span>
+        </div>`;
+    }).join('');
+    dd.classList.remove('hidden');
+}
+
+function pickOptUnderlying(p) {
+    optUnderlying = p;
+    document.getElementById('opt-underlying').value = p.ticker;
+    document.getElementById('opt-underlying-selected').textContent =
+        `${p.ticker}  ${p.name || ''}  (${p.base_currency})`;
+    document.getElementById('opt-underlying-selected').classList.add('has-value');
+    hide('opt-underlying-dd');
+    updateOptTicker();
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('#panel-option .ticker-wrap')) hide('opt-underlying-dd');
+});
+
+function buildOccTicker(underlying, expiry, type, strike) {
+    // OCC format: AAPL250620C00200000
+    if (!underlying || !expiry || !strike) return '';
+    const sym = underlying.toUpperCase().padEnd(6, ' ').slice(0, 6).trim();
+    const d = expiry.replace(/-/g, '').slice(2); // YYMMDD
+    const cp = type === 'call' ? 'C' : 'P';
+    const s = Math.round(strike * 1000).toString().padStart(8, '0');
+    return `${sym}${d}${cp}${s}`;
+}
+
+function updateOptTicker() {
+    const underlying = optUnderlying?.ticker || '';
+    const expiry = document.getElementById('opt-expiry').value;
+    const type  = document.getElementById('opt-type').value;
+    const strike = parseFloat(document.getElementById('opt-strike').value) || 0;
+    const occ = buildOccTicker(underlying, expiry, type, strike);
+    document.getElementById('opt-ticker-preview').textContent =
+        occ ? `Ticker: ${occ}` : '';
+}
+
+async function createOptionProduct() {
+    if (!optUnderlying) { showMsg('option-msg', 'Select an underlying.', 'error'); return; }
+    const type   = document.getElementById('opt-type').value;
+    const strike = parseFloat(document.getElementById('opt-strike').value);
+    const expiry = document.getElementById('opt-expiry').value;
+    if (!strike || !expiry) { showMsg('option-msg', 'Strike and expiry are required.', 'error'); return; }
+
+    const ticker = buildOccTicker(optUnderlying.ticker, expiry, type, strike);
+    if (!ticker) { showMsg('option-msg', 'Could not generate option ticker.', 'error'); return; }
+
+    showMsg('option-msg', 'Creating…', 'info');
+
+    // 1. Create product
+    const { data: prod, error: e1 } = await sb.from('products')
+        .insert({
+            ticker,
+            name: `${optUnderlying.ticker} ${expiry} ${strike} ${type.toUpperCase()}`,
+            asset_class: 'option',
+            base_currency: optUnderlying.base_currency,
+            exchange: 'US',
+            is_active: true,
+        })
+        .select('id')
+        .single();
+    if (e1) { showMsg('option-msg', e1.message, 'error'); return; }
+
+    // 2. Create option_details
+    const { error: e2 } = await sb.from('option_details').insert({
+        product_id: prod.id,
+        option_type: type,
+        strike_price: strike,
+        expiration_date: expiry,
+        underlying_product_id: optUnderlying.id,
+        contract_multiplier: 100,
+    });
+    if (e2) { showMsg('option-msg', e2.message, 'error'); return; }
+
+    // 3. Create vendor_mappings (yfinance + yahoo_finance)
+    await sb.from('vendor_mappings').insert([
+        { product_id: prod.id, vendor_id: 1, vendor_ticker: ticker },
+        { product_id: prod.id, vendor_id: 3, vendor_ticker: ticker },
+    ]);
+
+    showMsg('option-msg', `Option "${ticker}" created (id=${prod.id})`, 'success');
+
+    // Reset form
+    optUnderlying = null;
+    document.getElementById('opt-underlying').value = '';
+    document.getElementById('opt-underlying-selected').textContent = 'No underlying selected';
+    document.getElementById('opt-underlying-selected').classList.remove('has-value');
+    document.getElementById('opt-strike').value = '';
+    document.getElementById('opt-expiry').value = '';
+    document.getElementById('opt-ticker-preview').textContent = '';
+
+    // Reload view data to pick up new option
+    if (currentPortfolioId) await loadAndRender();
+    clearMsgAfter('option-msg', 5000);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
