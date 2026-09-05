@@ -1,0 +1,105 @@
+name: Backfill Missing Days
+
+# 手动触发，用来补定时任务停掉那几天的窟窿。
+# 步骤和 daily_sync.yml 完全一样，只是把「今天」换成一个日期区间：
+#   1. 重新下载区间内的 OHLCV（02b_resync_history.py 会先删掉区间内的旧行情再重灌）
+#   2. 给区间内每个工作日补 cash 报价 (1.0)
+#   3. 补 USD↔HKD 汇率
+#   4. 重算区间内的 daily_portfolio_stats
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Start date, inclusive (YYYY-MM-DD)"
+        required: true
+        type: string
+      end:
+        description: "End date, inclusive (YYYY-MM-DD)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 日期直接进 shell 命令行，先卡一下格式
+      - name: Validate inputs
+        env:
+          START: ${{ inputs.start }}
+          END:   ${{ inputs.end }}
+        run: |
+          for d in "$START" "$END"; do
+            echo "$d" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || { echo "bad date: $d"; exit 1; }
+          done
+          if [ "$(date -d "$START" +%s)" -gt "$(date -d "$END" +%s)" ]; then
+            echo "start must be <= end"; exit 1
+          fi
+          echo "backfilling $START .. $END"
+
+      - name: Re-download quotes for the range
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          START: ${{ inputs.start }}
+          END:   ${{ inputs.end }}
+        run: |
+          python 02_sync_prices/02b_resync_history.py --start "$START" --end "$END"
+
+      - name: Backfill Cash Quotes (weekdays in range)
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          START: ${{ inputs.start }}
+          END:   ${{ inputs.end }}
+        run: |
+          python - <<'PY'
+          import os, psycopg2
+          conn = psycopg2.connect(os.environ["DB_CONNECTION"])
+          with conn, conn.cursor() as cur:
+              cur.execute("""
+                  SELECT d::date, public.upsert_cash_quotes(d::date)
+                  FROM generate_series(%s::date, %s::date, interval '1 day') d
+                  WHERE extract(isodow from d) < 6
+                  ORDER BY d
+              """, (os.environ["START"], os.environ["END"]))
+              for day, n in cur.fetchall():
+                  print(f"{day}: {n} cash quotes")
+          conn.close()
+          PY
+
+      - name: Backfill FX Rates (USD↔HKD)
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          START: ${{ inputs.start }}
+          END:   ${{ inputs.end }}
+        run: |
+          python 06_add_fx_rate.py --fetch "$START" $(date -d "$END + 1 day" +%Y-%m-%d) --skip-existing
+
+      - name: Rebuild Portfolio Stats for the range
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          START: ${{ inputs.start }}
+          END:   ${{ inputs.end }}
+        run: |
+          python 07_rebuild_portfolio_stats.py --from "$START" --to "$END"

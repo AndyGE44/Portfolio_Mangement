@@ -17,6 +17,12 @@ A personal quantitative finance platform built on **Supabase (PostgreSQL)** + a 
 │                                                                                        │
 │  recalc_portfolio.yml (workflow_dispatch — backup, kept for batch jobs)                │
 │    └─ 07_rebuild_portfolio_stats.py --portfolio <id> --full                            │
+│                                                                                        │
+│  keepalive.yml       (Sun + Wed 08:17 UTC)                                             │
+│    └─ pings Supabase + keeps the repo/cron from being auto-disabled                    │
+│                                                                                        │
+│  backfill.yml        (workflow_dispatch — replays a date range after an outage)        │
+│    └─ 02b_resync_history.py → cash quotes → FX → 07_rebuild_portfolio_stats.py         │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
                                          │
                                          ▼
@@ -206,6 +212,25 @@ Two interchangeable paths produce identical output:
 
 - **Recalc button (default)** — `docs/portfolio.html` calls `supabase.rpc('rebuild_portfolio_stats', { p_portfolio_id })`. Runs in Postgres, sub-second on a year of data, multiplier-aware for options, auth-checked via `auth.uid()`.
 - **`recalc_portfolio.yml` (backup)** — `workflow_dispatch` job runs `07_rebuild_portfolio_stats.py --portfolio <id> --full`. Useful for batch jobs or local dry-runs against the prod DB.
+
+### Keepalive (`.github/workflows/keepalive.yml`)
+
+Two independent inactivity timers can silently kill this project, and this workflow resets both. It runs **Sundays and Wednesdays at 08:17 UTC** (and can be triggered manually):
+
+| Timer | Who kills it | Fix in the workflow |
+| --- | --- | --- |
+| **7 days** with no database activity | Supabase pauses free-tier projects | `SELECT now()` against `DB_CONNECTION` — a ping every 3–4 days |
+| **60 days** with no repository activity | GitHub disables all `schedule` triggers | Pushes an empty commit whenever the last commit is 30+ days old |
+
+It also calls the Actions REST API to re-enable `daily_sync.yml` / `keepalive.yml` if it finds them in a `disabled_inactivity` state, so the pipeline can recover on its own.
+
+> If a paused Supabase project has *already* been restored by hand, nothing else is needed — the keepalive keeps it awake from then on. If GitHub has *already* disabled the cron, the first re-enable has to be done in the **Actions** tab (a disabled workflow does not run, so it cannot re-enable itself).
+
+### Backfill (`.github/workflows/backfill.yml`)
+
+`02_yfbatch_sync_price.py` only ever downloads a yesterday→tomorrow window, so a manual re-run of `daily_sync.yml` cannot fill a gap left by a paused cron. Dispatch **Backfill Missing Days** with a `start` / `end` date instead — it replays the same four steps over the whole range.
+
+> Heads-up: step 1 calls `02b_resync_history.py`, which **deletes** the existing `yahoo_finance` / `eod` quotes inside the range before re-downloading them. That is what makes the replay idempotent, but keep the range tight — pass only the days that are actually missing.
 
 ---
 

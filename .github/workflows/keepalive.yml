@@ -1,0 +1,91 @@
+name: Keepalive (Supabase + Actions)
+
+# 这个 workflow 专门解决两个「太久没活动就被停掉」的问题：
+#
+#   1. Supabase 免费版：项目连续 7 天没有任何数据库活动就会被自动暂停 (paused)。
+#      → 每周日 / 周三各 ping 一次数据库，保证间隔永远 ≤ 4 天。
+#
+#   2. GitHub Actions：仓库连续 60 天没有新的提交，GitHub 会自动停用所有
+#      schedule 定时任务（daily_sync.yml 就是这样挂掉的）。
+#      → 仓库超过 30 天没有新提交时，自动推一个空提交把计时器清零；
+#        同时检查定时 workflow 是否已被停用，被停用就用 API 重新启用。
+on:
+  schedule:
+    # 每周日和周三 UTC 08:17
+    - cron: '17 8 * * 0,3'
+
+  # 也可以在 Actions 页面手动点按钮跑一次
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 推空提交
+  actions: write    # 重新启用被停用的 workflow
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          # 完整历史：下面要判断「最后一次提交距今多少天」，并往回推提交
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install psycopg2
+        run: pip install --quiet psycopg2-binary
+
+      # 1. Ping Supabase —— 只要有一次查询，7 天暂停计时器就会重置
+      - name: Ping Supabase
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+        run: |
+          python - <<'PY'
+          import os, psycopg2
+          conn = psycopg2.connect(os.environ["DB_CONNECTION"], connect_timeout=30)
+          with conn, conn.cursor() as cur:
+              # max(trade_date) 走 idx_quotes_date，几毫秒，顺便报一下行情新鲜度
+              cur.execute("SELECT now(), (SELECT max(trade_date) FROM public.quotes)")
+              ts, latest = cur.fetchone()
+              print(f"supabase alive at {ts} — latest quote: {latest}")
+          conn.close()
+          PY
+
+      # 2. 仓库太久没提交就推一个空提交，重置 GitHub 的 60 天计时器
+      - name: Push empty commit if the repo has been quiet for 30+ days
+        run: |
+          LAST=$(git log -1 --format=%ct)
+          DAYS=$(( ( $(date -u +%s) - LAST ) / 86400 ))
+          echo "last commit was $DAYS day(s) ago"
+          if [ "$DAYS" -lt 30 ]; then
+            echo "repo is active — no keepalive commit needed"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive — reset GitHub 60-day scheduled-workflow timer"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      # 3. 兜底：如果定时 workflow 已经被 GitHub 停用了，用 API 重新打开
+      - name: Re-enable scheduled workflows if GitHub disabled them
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for wf in daily_sync.yml keepalive.yml; do
+            state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${wf}" --jq .state)
+            echo "${wf}: ${state}"
+            if [ "$state" != "active" ]; then
+              gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/${wf}/enable"
+              echo "re-enabled ${wf}"
+            fi
+          done

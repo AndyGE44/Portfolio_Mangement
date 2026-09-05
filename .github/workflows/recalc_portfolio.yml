@@ -16,15 +16,23 @@ on:
         type: choice
         options: ["full", "today"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: recalc-portfolio
+  cancel-in-progress: false
+
 jobs:
   recalc:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: "pip"

@@ -12,18 +12,27 @@ on:
   # 允许在 GitHub 网页上通过按钮手动触发运行（测试时非常有用）
   workflow_dispatch: 
 
+permissions:
+  contents: read
+
+# 同一时间只跑一份，避免手动触发和定时任务撞车写同一批数据
+concurrency:
+  group: daily-sync
+  cancel-in-progress: false
+
 jobs:
   run-sync:
     runs-on: ubuntu-latest # 使用最新的 Ubuntu 虚拟环境
+    timeout-minutes: 30
 
     steps:
       # 1. 把你的代码拉取到虚拟机里
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       # 2. 设置 Python 环境
       - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: 'pip' # 缓存依赖，加快后续运行速度
